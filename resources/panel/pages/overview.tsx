@@ -102,7 +102,7 @@ function RulesCard({ data }: { data?: Overview }) {
               <XAxis type="number" dataKey="hits" hide />
               <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={96} />
               <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-              <Bar dataKey="hits" fill="var(--color-hits)" radius={4}>
+              <Bar dataKey="hits" fill="var(--color-hits)" radius={4} maxBarSize={16}>
                 <LabelList dataKey="hits" position="right" offset={8} className="fill-foreground" fontSize={12} formatter={(v) => formatNumber(Number(v))} />
               </Bar>
             </BarChart>

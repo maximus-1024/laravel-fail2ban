@@ -33,7 +33,7 @@ class SettingsTest extends PanelTestCase
             'limits' => 'array', 'updated_by' => '?string', 'updated_at' => '?time',
         ], $json, 'settings');
 
-        $this->assertFalse($json['enabled']);
+        $this->assertTrue($json['enabled']);
         $this->assertSame('observe', $json['mode']);
         $this->assertNull($json['updated_by']);
         $this->assertNull($json['updated_at']);

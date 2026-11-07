@@ -15,7 +15,7 @@ class Fail2BanTest extends TestCase
     #[Test]
     public function config_is_merged_with_defaults(): void
     {
-        $this->assertFalse(config('fail2ban.enabled'));
+        $this->assertTrue(config('fail2ban.enabled'));
         $this->assertSame('observe', config('fail2ban.mode'));
 
         $this->assertSame(

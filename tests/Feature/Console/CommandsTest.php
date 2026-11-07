@@ -106,6 +106,8 @@ class CommandsTest extends PanelTestCase
     #[Test]
     public function mode_switches_the_running_mode(): void
     {
+        config(['fail2ban.enabled' => false]);
+
         $this->artisan('fail2ban:mode', ['mode' => 'block'])
             ->expectsOutputToContain('拦截')
             ->expectsOutputToContain('总开关')

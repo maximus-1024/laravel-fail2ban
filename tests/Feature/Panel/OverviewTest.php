@@ -41,7 +41,7 @@ class OverviewTest extends PanelTestCase
             'top_ips' => 'list', 'top_targets' => 'list', 'top_regions' => 'list', 'recent' => 'list',
         ], $json, 'overview');
 
-        $this->assertFalse($json['enabled']);
+        $this->assertTrue($json['enabled']);
         $this->assertSame('observe', $json['mode']);
 
         $this->assertShape(['blocked' => 'int', 'new_bans' => 'int', 'active_bans' => 'int', 'repeat_offenders' => 'int', 'hits' => 'int'], $json['kpis'], 'kpis');
@@ -97,11 +97,11 @@ class OverviewTest extends PanelTestCase
     #[Test]
     public function the_master_switch_and_mode_are_reported(): void
     {
-        config(['fail2ban.enabled' => true]);
+        config(['fail2ban.enabled' => false]);
         $this->putJson($this->api('/settings'), ['mode' => 'block'])->assertOk();
 
         $this->getJson($this->api('/overview'))
-            ->assertJsonPath('enabled', true)
+            ->assertJsonPath('enabled', false)
             ->assertJsonPath('mode', 'block');
     }
 }

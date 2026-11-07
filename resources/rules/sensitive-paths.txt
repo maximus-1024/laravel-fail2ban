@@ -1,10 +1,17 @@
-# 敏感文件探测（sensitive-path）的地址清单。只在响应是 404 时才看，默认 10 分钟内 3 个不同地址才封。
+# 敏感文件探测（sensitive-path）的地址清单。默认 10 分钟内 3 个不同地址才封。
 #
 # 格式见 src/Rules/Support/PatternList.php：只有首尾的 * 是通配符，不分大小写。
+# 每个分段标题末尾的标记决定这一段在什么响应下才算：
+#   [any-status]   不看状态码，命中就算。恶意明确、宿主不会真有的地址；宿主把一切渲染成 HTTP 200
+#                  （例如 /storage/logs/laravel.log 命中 Laravel 自带的 storage/{path} 路由、签名校验失败
+#                  被渲染成 200）时也照样能抓到。宿主的入口脚本 /index.php 例外，只在响应不是成功时算。
+#   [non-success]  响应不是成功（状态码不在 200–399，404、401、403、405、5xx 等）时才算。宿主可能真有的页面：
+#                  管理员成功打开 /horizon 不算，没登录、没权限、不存在时算。
+#   不带标记的分段按 [non-success]。改了标记要运行 composer compile-rules。
 # 匹配对象是归一化后的路径（不含查询参数），并且同时试「末尾补一个斜杠」的形式，
 # 所以 "*/.git/*" 同时命中 "/.git" 与 "/.git/config"。
 #
-# 条目数：262（七组）。核对日期：2026-11-07。
+# 条目数：306（十三组；[any-status] 174 条，[non-success] 132 条）。核对日期：2026-11-07。
 #
 # 出处（均在 2026-11-07 在线打开核对）：
 #   CrowdSec http-sensitive-files（按「结尾」匹配）     https://hub-data.crowdsec.net/web/sensitive_data.txt
@@ -16,10 +23,15 @@
 #     http/exposures 与 http/misconfiguration：Laravel 与 PHP 专项条目、具体的 yml 文件名、
 #     shell 历史文件，逐条见下面各组的注释。
 #   「其它平台的已知漏洞地址」一组的出处写在组内。
+#   2026-11-07 第二次补充的四组（标题里写「2026-11-07 补充」）与「其它平台」组末尾的补充，出处逐条写在条目上方：
+#     OWASP CRS restricted-files.data   https://github.com/coreruleset/coreruleset/blob/main/rules/restricted-files.data
+#     nuclei-templates（提交 52d0a07）  https://github.com/projectdiscovery/nuclei-templates （http/exposures、http/misconfiguration、http/cves）
+#     fail2ban botsearch-common.conf    https://github.com/fail2ban/fail2ban （config/filter.d/botsearch-common.conf）
+#     Vite 公告 GHSA-x574-m823-4x7w（CVE-2025-30208）  https://github.com/advisories/GHSA-x574-m823-4x7w
+#     Livewire 公告 GHSA-29cq-5w36-x7w3（CVE-2025-54068） https://github.com/advisories/GHSA-29cq-5w36-x7w3
 #   「备份与数据库导出」里 CrowdSec 没有的扩展名（.zip .tar .gz .7z .db .sqlite .dump .old .orig
 #     .swp 等）、「环境与配置文件」里的 .ini .conf .cfg .config .pem .key .ppk .p12 .pfx：
-#     第一版按常识整理，没有逐条对应到出处；它们都是 Laravel 接口绝不会提供、又只在 404 时才算的
-#     后缀，误伤面小，保留。
+#     第一版按常识整理，没有逐条对应到出处；它们都是 Laravel 接口绝不会提供的后缀，误伤面小，保留。
 #
 # 本次（2026-11-07）的调整：
 #   收紧（理由：对一个 Laravel 支付接口太宽）：
@@ -47,7 +59,8 @@
 #       没发布或版本变了时运维打开面板就会连着几个 404，会把管理员自己封掉。
 #       /vendor 下真正危险的 phpunit 已在已知漏洞探测，installed.json 在本清单。
 #     /livewire/*：CVE-2025-54068 的 nuclei 模板先从首页抓 Livewire 的更新地址再打，
-#       找不到扫描器盲探 /livewire/update 的出处。
+#       找不到扫描器盲探 /livewire/update 的出处。（2026-11-07 第二次补充时按 [non-success] 收了：
+#       用 Livewire 的宿主正常请求是成功响应，不算。）
 #     Laravel 调试模式泄露（APP_DEBUG=true 时的报错页）：靠任何报错请求触发，没有固定的探测地址，
 #       地址清单做不了。/_ignition/* 已在本清单。
 #   没收的条目及原因（第一版就有）：
@@ -58,15 +71,10 @@
 #     /.well-known/*（证书签发、security.txt、App 关联文件都用它）
 #     /autodiscover/*（Outlook 自动发现是正常客户端行为）
 
-## 环境与配置文件
+## 环境与配置文件 [any-status]
 */.env*
 */env.bak
 */env.backup
-*/env.json
-*/env.js
-*/env.dev.js
-*/env.test.js
-*/env.production.js
 */test-env.json
 *.env
 */.aws/*
@@ -152,7 +160,7 @@
 *.p12
 *.pfx
 
-## 版本库目录
+## 版本库目录 [any-status]
 */.git/*
 */.gitignore
 */.gitlab-ci/*
@@ -164,7 +172,7 @@
 */cvs/entries
 */.subversion/*
 
-## 备份与数据库导出
+## 备份与数据库导出 [any-status]
 *.sql
 *.sql.gz
 *.sql.tar
@@ -196,7 +204,7 @@
 *.dump
 *.log
 
-## 常见后台入口
+## 常见后台入口 [non-success]
 */phpmyadmin*
 */pma/*
 */myadmin/*
@@ -225,7 +233,7 @@
 */actuator*
 */cgi-bin/*
 
-## 常见后门与脚本后缀（宿主是 Laravel，除 index.php 外不提供任何脚本文件）
+## 常见后门与脚本后缀（宿主是 Laravel，除 index.php 外不提供任何脚本文件） [any-status]
 *.php
 *.php3
 *.php4
@@ -251,11 +259,14 @@
 *.bat
 *.printer
 
-## Laravel 专项：日志、调试与运维面板（装了这些面板时访问它们不会是 404，不会命中）
+## Laravel 专项：日志、缓存与会话文件（只该在服务器磁盘上，不是页面） [any-status]
 */storage/logs/*
 */storage/framework/*
+*/storage/sessions/*
 */bootstrap/cache/*
 /artisan
+
+## Laravel 专项：调试与运维面板（装了这些面板时管理员能正常打开，打开成功不算） [non-success]
 /telescope/*
 /horizon/*
 /pulse/*
@@ -266,10 +277,82 @@
 /log-viewer/*
 /nova/*
 /laravel-filemanager/*
-*/storage/sessions/*
-/_profiler/*
+# Symfony Profiler：nuclei exposures/configs/symfony-profiler.yaml 还探测 /app_dev.php/_profiler/…、
+#   /index.php/_profiler/… 这类带前端控制器前缀的写法，所以按「包含」匹配（2026-11-07 由 /_profiler/* 放宽）
+*/_profiler/*
 
-## 其它平台的已知漏洞地址（凑够出现次数才封）
+## 前端运行时配置（单页应用常把运行时配置放在站点根目录，宿主可能真有） [non-success]
+# 2026-11-07 从「环境与配置文件」挪来：前端构建产物的环境文件被扫描时多半是 404，照样能算；
+# 宿主自己用 /env.js、/env.json 下发运行时配置时，成功打开不算。
+*/env.json
+*/env.js
+*/env.dev.js
+*/env.test.js
+*/env.production.js
+
+## Laravel 与 PHP 生态：开发、构建与依赖配置（2026-11-07 补充） [non-success]
+# Livewire：CVE-2025-54068，nuclei http/cves/2025/CVE-2025-54068.yaml；GHSA-29cq-5w36-x7w3。
+#   用 Livewire 的宿主正常请求是成功响应，不算；没用时任何请求都是扫描。
+/livewire/*
+# nuclei exposures/configs/symfony-lock-exposure.yaml
+*/symfony.lock
+# nuclei exposures/configs/phpstan-config.yaml
+*/phpstan.neon
+# nuclei exposures/configs/psalm-config.yaml
+*/psalm.xml
+# nuclei exposures/configs/phpcs-config.yaml；CRS restricted-files.data 有 phpcs.xml、.phpcs.xml、phpcs.xml.dist 等
+*/phpcs.xml*
+# nuclei exposures/files/webpack-mix-js.yaml（Laravel Mix）
+*/webpack.mix.js
+# nuclei exposures/configs/vite-config.yaml（Laravel 新版默认构建工具）
+*/vite.config.js
+# nuclei exposures/configs/opcache-status-exposure.yaml：/opcache-status/、/php-opcache-status/
+*opcache-status*
+# Composer 私有仓库凭据：CRS restricted-files.data /auth.json；nuclei 备份类模板 /backup/auth.json 等
+*/auth.json
+# CRS restricted-files.data .php_history
+*/.php_history
+
+## 云凭据、远程同步配置与命令历史（2026-11-07 补充） [any-status]
+# nuclei exposures/configs/git-credentials-disclosure.yaml；CRS restricted-files.data
+*/.git-credentials
+# CRS restricted-files.data .kube/
+*/.kube/*
+# nuclei exposures/files/terraform-tfstate-exposure.yaml：/terraform.tfstate、/terraform.tfstate.backup
+*/terraform.tfstate*
+# nuclei exposures/configs/sftp-credentials-exposure.yaml：/sftp-config.json、/ftpsync.settings
+*/sftp-config.json
+*/ftpsync.settings
+# CRS restricted-files.data sftp.json
+*/sftp.json
+# nuclei exposures/files/service-account-credentials.yaml
+*/service-account-credentials.json
+*/serviceaccountcredentials.json
+# CRS restricted-files.data：.netrc、.pgpass、.my.cnf、.pypirc、.psql_history、.sqlite_history、
+#   .rediscli_history、.node_repl_history（.sqlite_history、node_repl_history 也见于 nuclei 备份类模板）
+*/.netrc
+*/.pgpass
+*/.my.cnf
+*/.pypirc
+*/.psql_history
+*/.sqlite_history
+*/.rediscli_history
+*/.node_repl_history
+
+## 云、CI 与依赖目录（2026-11-07 补充） [non-success]
+# nuclei exposures/files/appsettings-file-disclosure.yaml：/appsettings.json、/appsettings.Production.json
+*/appsettings.json
+*/appsettings.production.json
+# nuclei exposures/files/google-services-json.yaml
+*/google-services.json
+# CRS restricted-files.data credentials.json；nuclei 多个模板 /credentials.json
+*/credentials.json
+# CRS restricted-files.data：.travis.yml、bitbucket-pipelines.yml、node_modules/
+*/.travis.yml
+*/bitbucket-pipelines.yml
+*/node_modules/*
+
+## 其它平台的已知漏洞地址（凑够出现次数才封） [non-success]
 # 不是 Laravel 与 PHP 生态，不放进一次即封的清单。宿主是 Laravel，这些地址在宿主上
 # 都是 404，正常访客不会请求，留在这里按敏感文件探测计数。
 # 下面 30 条取自 CrowdSec 趋势漏洞 https://hub-data.crowdsec.net/web/trendy_cves_uris.json
@@ -403,3 +486,26 @@
 */device.rsp*
 # 海康威视：nuclei http/cves/2021/CVE-2021-36260.yaml
 */sdk/weblanguage*
+#
+# 2026-11-07 第二次补充（其它平台与组件）：
+# fail2ban botsearch-common.conf 的 webmail 一支（roundcube、horde、webmail）
+*/roundcube*
+*/webmail*
+*/horde*
+# Jolokia：nuclei 多个 Spring 模板探测 /jolokia、/actuator/jolokia、/api/jolokia/…
+*/jolokia*
+# nginx 状态页：nuclei 探测 /nginx_status
+*/nginx_status
+# Go pprof：nuclei exposures/logs/go-pprof-debug.yaml
+*/debug/pprof*
+# Yii 与 Craft 的调试工具栏：nuclei 多个模板探测 /debug/default/view
+*/debug/default/view*
+# Magento 1 配置：CRS restricted-files.data /app/etc/local.xml
+*/app/etc/local.xml
+# AWStats：nuclei 探测 /awstats/、/awstats/data
+*/awstats/*
+
+## 其它平台：Vite 开发服务器（生产构建没有这些路径，2026-11-07 补充） [any-status]
+# CVE-2025-30208：GHSA-x574-m823-4x7w 写明用 /@fs/…?raw?? 读任意文件；CRS restricted-files.data 有 /@fs/、/@id/
+/@fs/*
+/@id/*

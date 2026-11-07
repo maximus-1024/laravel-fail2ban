@@ -71,7 +71,8 @@ class Inspector
     /**
      * 按 fail2ban 配置构建（服务提供者里的容器绑定用这个）。
      *
-     *  - lists.{规则标识}.extra / except：给 LIST_RULES 里的规则追加、排除清单条目。
+     *  - lists.{规则标识}.extra / extra_any_status / except：给 LIST_RULES 里的规则追加、排除清单条目。
+     *    地址清单里 extra 归「响应不是成功才算」，extra_any_status 归「不看状态码」；except 两类都排除。
      *  - rules.{标识}.class：登记自定义规则类（由容器解析，可以注入依赖），它的 id() 必须等于标识；
      *    写在内置规则的标识下面则替换那条内置规则（类要返回同样的标识）。
      *
@@ -154,17 +155,18 @@ class Inspector
      * 内置规则类没有依赖，宿主也没在容器里改绑它时直接 new，省掉容器的反射——php-fpm 下
      * 每个请求都要建一次规则入口。其它类（自定义规则、替换内置规则的类）由容器解析，可以注入依赖。
      *
-     * @param  array{extra?: mixed, except?: mixed}|null  $list  fail2ban.lists.{标识}
+     * @param  array{extra?: mixed, extra_any_status?: mixed, except?: mixed}|null  $list  fail2ban.lists.{标识}
      */
     protected static function makeRule(string $id, string $class, ?array $list, Container $container): Rule
     {
         $parameters = $list === null ? [] : [
             'extra' => array_values((array) ($list['extra'] ?? [])),
             'except' => array_values((array) ($list['except'] ?? [])),
+            'extraAnyStatus' => array_values((array) ($list['extra_any_status'] ?? [])),
         ];
 
         if ((static::BUILTIN[$id] ?? null) === $class && ! $container->bound($class)) {
-            return $list === null ? new $class : new $class($parameters['extra'], $parameters['except']);
+            return $list === null ? new $class : new $class($parameters['extra'], $parameters['except'], $parameters['extraAnyStatus']);
         }
 
         $rule = $container->make($class, $parameters);

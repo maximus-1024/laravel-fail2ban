@@ -3,7 +3,7 @@
 # 每行一个字面量（不是正则），不分大小写，在浏览器标识里「按词」查找：
 # 条目首尾是字母或数字时，要求它前后不紧挨着字母或数字（"nmap" 不会命中 "sitenmapx"）。
 #
-# 条目数：76。核对日期：2026-11-07。
+# 条目数：78（CRS 76 条，2026-11-07 补充 2 条）。核对日期：2026-11-07。
 #
 # 出处：OWASP CRS rules/scanners-user-agents.data（规则 913100 用）
 #   https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/scanners-user-agents.data
@@ -16,7 +16,7 @@
 #   OpenVAS、Nessus、Acunetix、gobuster、Dirbuster、Havij、Fimap 等）CRS 都已包含。
 #
 # 从 CRS 清单里去掉的：
-#   Mozilla/6.0   （CRS 自己也注明是「技术上合法」的标识，拿不准）
+#   Mozilla/6.0   （CRS 自己也注明是「技术上合法」的标识，拿不准；2026-11-07 改为收录，见最后一组）
 #   hexometer     （网站监控服务，运维或商户可能拿它做可用性监控）
 #   sitelockspider（网站安全托管服务的巡检爬虫，站长主动订阅的服务）
 #   securityagent （查不到确切来源，拿不准）
@@ -108,3 +108,12 @@ TruffleHog
 YesWeHack-Hunter
 TInjA
 Mozilla/5.0 (compatible; AppScan;
+
+## 2026-11-07 补充
+# CRS 主线 scanners-user-agents.data 的第一条。没有任何真实浏览器的标识是 Mozilla/6.0；
+#   按词查找，"Mozilla/6.01"、"Mozilla/5.0" 都不命中。
+Mozilla/6.0
+# GreyNoise 对一个扫描机群的报告 https://www.labs.greynoise.io/grimoire/2026-03-23-bucklog-k8s/
+#   写明它用 socketburst/0.1（同一机群用的 l9explore、l9tcpid 已在上面；它也用 curl、python-httpx
+#   与伪造的 Chrome 标识，那些是通用标识，不收）。
+socketburst

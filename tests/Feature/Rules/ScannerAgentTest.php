@@ -73,7 +73,9 @@ class ScannerAgentTest extends RuleTestCase
             '只是包含 nikto 字母' => ['Mozilla/5.0 niktoolkit/2'],
             '前面紧挨字母' => ['acmenmap-agent/1.0'],
             '前面紧挨数字' => ['client2sqlmap'],
-            '去掉的条目 Mozilla/6.0' => ['Mozilla/6.0 (compatible)'],
+            '真实浏览器 Mozilla/5.0' => ['Mozilla/5.0 (compatible)'],
+            '近似 Mozilla/6.01' => ['Mozilla/6.01 (compatible)'],
+            '近似 socketbursts' => ['socketbursts/1.0'],
             '去掉的条目 hexometer' => ['Hexometer'],
         ];
     }
@@ -118,6 +120,25 @@ class ScannerAgentTest extends RuleTestCase
         $this->assertNull($rule->key($this->makeRequest('GET', '/a?x=1', ['User-Agent' => 'sqlmap/1.7'])));
     }
 
+    public static function addedAgents(): array
+    {
+        return [
+            'Mozilla/6.0' => ['Mozilla/6.0 (compatible)'],
+            'Mozilla/6.0 大写' => ['MOZILLA/6.0'],
+            'socketburst' => ['socketburst/0.1'],
+        ];
+    }
+
+    /**
+     * 2026-11-07 补充的两条。
+     */
+    #[Test]
+    #[DataProvider('addedAgents')]
+    public function added_agents_match(string $agent): void
+    {
+        $this->assertTrue((new ScannerAgent)->matches($this->makeRequest('GET', '/', ['User-Agent' => $agent]), $this->response(200)), $agent);
+    }
+
     #[Test]
     public function list_has_crs_entries_and_no_generic_libraries(): void
     {
@@ -127,7 +148,7 @@ class ScannerAgentTest extends RuleTestCase
             $this->assertContains($tool, $entries);
         }
 
-        foreach (['curl', 'guzzle', 'okhttp', 'python-requests', 'httpx', 'go-http-client', 'java/', 'axios', 'node-fetch', 'undici', 'wget', 'httpclient', 'postman', 'libwww', 'mozilla/6.0'] as $generic) {
+        foreach (['curl', 'guzzle', 'okhttp', 'python-requests', 'httpx', 'go-http-client', 'java/', 'axios', 'node-fetch', 'undici', 'wget', 'httpclient', 'postman', 'libwww'] as $generic) {
             foreach ($entries as $entry) {
                 $this->assertStringNotContainsString($generic, $entry, "清单里不能有通用库：$entry");
             }

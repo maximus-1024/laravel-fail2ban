@@ -126,6 +126,11 @@ class NormalTrafficTest extends RuleTestCase
         ], $body);
 
         $this->assertSame([], $this->hitIds($request, $this->response($status)));
+
+        // 同一个请求换成各种失败状态（除了 404，那是 404 扫描的事）也不命中
+        foreach ([401, 403, 405, 419, 422, 500] as $failed) {
+            $this->assertSame([], $this->hitIds($request, $this->response($failed)), "$uri $failed");
+        }
     }
 
     public static function urlAndSignatureParameters(): array
@@ -148,6 +153,12 @@ class NormalTrafficTest extends RuleTestCase
             '动作参数' => ['/merchant/deposit-orders/export?action=download&is_download=1'],
             '订单号像序列化' => ['/portal/api/deposit-orders?keyword=O:20&range=custom'],
             '美元金额' => ['/v1/prepay/abc?description=%24_10+off&amount=10'],
+            // 与 2026-11-07 补充的载荷特征（回连域名、云元数据、模板探针、ini 指令、data://）字面相近的正常写法
+            '回调地址路径里有 oast 与 metadata' => ['/v1/prepay/abc?notify_url=https%3A%2F%2Fshop.example.com%3A8443%2Fapi%2Foast%2Fmetadata%2Fcallback&return_url=https%3A%2F%2Ftoast.example.com%2Fback'],
+            '回调地址是私网与链路本地' => ['/v1/prepay/abc?notify_url=http%3A%2F%2F10.0.0.5%2Fnotify&backup_url=http%3A%2F%2F169.254.10.20%2Fnotify'],
+            '备注里的乘号与花括号' => ['/v1/prepay/abc?remark=%E6%95%B0%E9%87%8F+2*3%EF%BC%8C%7B%E4%BC%9A%E5%91%98%7D&subject=%7B%7Bnick%7D%7D'],
+            '图片与 base64' => ['/v1/prepay/abc?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D&data=eyJzYWZlX21vZGUiOjF9'],
+            '同名参数' => ['/v1/prepay/abc?safe_mode=1&debug=0&raw=1&import=0'],
         ];
     }
 
@@ -155,7 +166,8 @@ class NormalTrafficTest extends RuleTestCase
     #[DataProvider('urlAndSignatureParameters')]
     public function url_signature_and_text_parameters_are_clean(string $uri): void
     {
-        foreach ([200, 500] as $status) {
+        // 地址类规则的「任意状态」组每个请求都看、「非成功」组在 4xx/5xx 时看：各种状态都不能误伤
+        foreach ([200, 204, 302, 401, 403, 405, 410, 419, 422, 429, 500, 503] as $status) {
             $this->assertSame([], $this->hitIds($this->makeRequest('GET', $uri), $this->response($status)), "$uri $status");
         }
     }

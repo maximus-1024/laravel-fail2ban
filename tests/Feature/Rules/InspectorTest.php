@@ -91,6 +91,12 @@ class InspectorTest extends RuleTestCase
         $request = $this->makeRequest('GET', '/.env?id=1%27%20or%20%271%27=%271', ['User-Agent' => 'sqlmap/1.7.2#stable (https://sqlmap.org)']);
 
         $this->assertSame(['sensitive-path', 'scanner-agent', 'attack-pattern'], $this->hitIds($request, $this->response(404)));
+        // .env 不看状态码
+        $this->assertSame(['sensitive-path', 'scanner-agent', 'attack-pattern'], $this->hitIds($request, $this->response(200)));
+
+        // 运维面板只在响应不是成功时算
+        $request = $this->makeRequest('GET', '/horizon?id=1%27%20or%20%271%27=%271', ['User-Agent' => 'sqlmap/1.7.2#stable (https://sqlmap.org)']);
+        $this->assertSame(['sensitive-path', 'scanner-agent', 'attack-pattern'], $this->hitIds($request, $this->response(403)));
         $this->assertSame(['scanner-agent', 'attack-pattern'], $this->hitIds($request, $this->response(200)));
     }
 

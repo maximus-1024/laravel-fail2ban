@@ -142,6 +142,45 @@ class ExtensibilityTest extends RuleTestCase
         $this->assertSame([], $this->ids($plain, '/', 200, ['User-Agent' => 'Mozilla/5.0 EvilCrawler/1.0']));
     }
 
+    #[Test]
+    public function extra_path_entries_count_only_on_unsuccessful_responses_unless_marked_any_status(): void
+    {
+        $inspector = $this->inspector(['lists' => [
+            'sensitive-path' => ['extra' => ['/internal-backup/*'], 'extra_any_status' => ['*.tfstate', '/ops-secret']],
+            'known-exploit' => ['extra' => ['*/old-gateway/notify'], 'extra_any_status' => ['*/old-gateway/debug']],
+            'scanner-agent' => ['extra_any_status' => ['EvilCrawler']],
+        ]]);
+
+        // extra：默认归「响应不是成功才算」（宿主可能真有的页面，更保守）
+        $this->assertSame([], $this->ids($inspector, '/internal-backup/readme', 200));
+        $this->assertSame(['sensitive-path'], $this->ids($inspector, '/internal-backup/readme', 403));
+        $this->assertSame([], $this->ids($inspector, '/old-gateway/notify', 200));
+        $this->assertSame(['known-exploit'], $this->ids($inspector, '/old-gateway/notify', 500));
+
+        // extra_any_status：不看状态码
+        $this->assertSame(['sensitive-path'], $this->ids($inspector, '/terraform.tfstate', 200));
+        $this->assertSame(['sensitive-path'], $this->ids($inspector, '/ops-secret', 200), '不带点的条目也要过预筛');
+        $this->assertSame(['sensitive-path'], $this->ids($inspector, '/ops-secret/', 302));
+        $this->assertSame(['known-exploit'], $this->ids($inspector, '/old-gateway/debug', 200));
+
+        // 扫描器特征本来就不看状态码，两种写法一样
+        $this->assertSame(['scanner-agent'], $this->ids($inspector, '/', 200, ['User-Agent' => 'Mozilla/5.0 EvilCrawler/1.0']));
+
+        // 内置条目不受影响
+        $this->assertSame(['sensitive-path'], $this->ids($inspector, '/.env', 200));
+        $this->assertSame([], $this->ids($inspector, '/horizon', 200));
+        $this->assertSame(['sensitive-path'], $this->ids($inspector, '/horizon', 401));
+    }
+
+    #[Test]
+    public function only_extra_any_status_configured_still_compiles_at_runtime(): void
+    {
+        $inspector = $this->inspector(['lists' => ['sensitive-path' => ['extra_any_status' => ['/ops-secret']]]]);
+        $compiled = (new ReflectionMethod($inspector->rule('sensitive-path'), 'compiled'))->invoke($inspector->rule('sensitive-path'));
+
+        $this->assertNotSame(CompiledLists::for(SensitivePath::class), $compiled);
+    }
+
     // ---------------------------------------------------------------- 排除
 
     #[Test]
@@ -163,6 +202,15 @@ class ExtensibilityTest extends RuleTestCase
         $this->assertSame(['sensitive-path'], $this->ids($inspector, '/_ignition/execute-solution'));
         $this->assertNotContains('known-exploit', $this->ids($inspector, '/?-d+allow_url_include%3d1', 200));
         $this->assertContains('known-exploit', $this->ids($inspector, '/?-d+auto_prepend_file%3dphp://input', 200), '没排除的照常命中');
+
+        // 两类都排除：不看状态码的 *.php 与非成功才算的面板
+        $this->assertSame([], $this->ids($inspector, '/shell.php', 200));
+        $inspector2 = $this->inspector(['lists' => ['sensitive-path' => ['except' => ['/horizon/*'], 'extra_any_status' => ['/mine-any'], 'extra' => ['/mine']]]]);
+        $this->assertSame(['not-found-scan'], $this->ids($inspector2, '/horizon', 404));
+        $this->assertSame([], $this->ids($inspector2, '/horizon', 403));
+        $inspector3 = $this->inspector(['lists' => ['sensitive-path' => ['extra_any_status' => ['/mine-any'], 'extra' => ['/mine'], 'except' => ['/MINE-ANY', '/mine']]]]);
+        $this->assertSame([], $this->ids($inspector3, '/mine-any', 200), '排除对追加的条目同样生效');
+        $this->assertSame(['not-found-scan'], $this->ids($inspector3, '/mine', 404));
 
         // 扫描器特征
         $this->assertSame([], $this->ids($inspector, '/', 200, ['User-Agent' => 'Mozilla/5.00 (Nikto/2.1.6)']));
@@ -286,12 +334,11 @@ class ExtensibilityTest extends RuleTestCase
     public function lists_are_built_lazily_and_once(): void
     {
         // 解析绑定时不读清单、不编正则：带一个非法条目也能解析出来，第一次检测才报错。
+        // （「任意状态」组每个请求都要看，所以第一次检测任何请求都会构建清单。）
         $inspector = $this->inspector(['lists' => ['sensitive-path' => ['extra' => ['/bad*entry']]]]);
 
-        $this->assertSame([], $this->ids($inspector, '/v1/transactions/pay', 200), '响应不是 404 时根本不碰清单');
-
         try {
-            $this->ids($inspector, '/anything');
+            $this->ids($inspector, '/v1/transactions/pay', 200);
             $this->fail('非法条目应在第一次匹配时报错');
         } catch (InvalidArgumentException) {
         }

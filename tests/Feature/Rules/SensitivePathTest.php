@@ -97,23 +97,183 @@ class SensitivePathTest extends RuleTestCase
     #[DataProvider('ordinaryNotFound')]
     public function ordinary_missing_paths_do_not_match(string $path): void
     {
-        $this->assertFalse((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response(404)), $path);
+        foreach ([404, 200, 403] as $status) {
+            $this->assertFalse((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
     }
 
-    public static function nonNotFoundStatuses(): array
+    public static function successfulStatuses(): array
     {
-        return [[200], [302], [401], [403], [405], [500]];
+        return ['200' => [200], '204' => [204], '301' => [301], '302' => [302], '304' => [304]];
     }
+
+    public static function failedStatuses(): array
+    {
+        return ['401' => [401], '403' => [403], '404' => [404], '405' => [405], '419' => [419], '500' => [500], '503' => [503]];
+    }
+
+    /**
+     * [any-status] 分段的样例：每段至少一个，不看状态码。
+     */
+    private const MALICIOUS = [
+        '/.env', '/.env.production', '/docker-compose.yml', '/composer.json', '/phpinfo', '/id_rsa',   // 环境与配置文件
+        '/.git', '/.git/config', '/cvs/root',                                                          // 版本库目录
+        '/backup.sql', '/www.zip', '/debug.log', '/index.php~',                                       // 备份与数据库导出
+        '/shell.php', '/login.aspx', '/a.pl', '/wp-login.php', '/cgi-bin/test.cgi',                    // 后门与脚本后缀
+        '/storage/logs/laravel.log', '/storage/logs', '/storage/framework/sessions/x', '/storage/sessions/x',
+        '/bootstrap/cache/config.php', '/artisan',                                                    // Laravel 日志、缓存与会话
+    ];
+
+    /**
+     * [non-success] 分段的样例：每段至少一个，只在响应不是成功时算。
+     */
+    private const HOST_PAGES = [
+        '/phpmyadmin/', '/pma/', '/adminer', '/wp-admin/', '/administrator/', '/actuator/health', '/cgi-bin/luci', // 后台入口
+        '/horizon', '/horizon/dashboard', '/telescope/requests', '/pulse', '/_ignition/health-check', '/_debugbar/open',
+        '/clockwork/app', '/log-viewer', '/nova/resources', '/laravel-filemanager', '/_profiler/empty/search/results', // 面板
+        '/GponForm/diag_Form', '/HNAP1/', '/wls-wsat/CoordinatorPortType', '/boaform/admin/formLogin',          // 其它平台
+    ];
 
     #[Test]
-    #[DataProvider('nonNotFoundStatuses')]
-    public function sensitive_paths_need_a_404(int $status): void
+    #[DataProvider('successfulStatuses')]
+    #[DataProvider('failedStatuses')]
+    public function malicious_paths_match_regardless_of_status(int $status): void
     {
         $rule = new SensitivePath;
 
-        // 宿主装了 Horizon 时 /horizon 返回 200 或 403，不能算。
-        foreach (['/.env', '/horizon', '/telescope/requests', '/index.php', '/.git/config'] as $path) {
+        // 例如宿主把一切渲染成 HTTP 200：/storage/logs/laravel.log 命中 Laravel 自带的 storage/{path} 路由，
+        // 签名校验失败被渲染成 200，也要算。
+        foreach (self::MALICIOUS as $path) {
+            $this->assertTrue($rule->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+    }
+
+    #[Test]
+    #[DataProvider('successfulStatuses')]
+    public function host_pages_that_open_successfully_do_not_match(int $status): void
+    {
+        $rule = new SensitivePath;
+
+        // 宿主装了 Horizon 时管理员打开 /horizon 是 200（或跳转登录的 302），不能算。
+        foreach (self::HOST_PAGES as $path) {
             $this->assertFalse($rule->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+    }
+
+    #[Test]
+    #[DataProvider('failedStatuses')]
+    public function host_pages_match_when_the_response_is_not_successful(int $status): void
+    {
+        $rule = new SensitivePath;
+
+        // 没登录、没权限、不存在、出错都算：管理员自己不会一直授权不过。
+        foreach (self::HOST_PAGES as $path) {
+            $this->assertTrue($rule->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+    }
+
+    #[Test]
+    public function the_front_controller_is_a_real_page(): void
+    {
+        $rule = new SensitivePath;
+
+        // /index.php 符合 "*.php"，但它是宿主的入口脚本：成功时不算，不是成功时照常算。
+        foreach (['/index.php', '/index.php/', '/INDEX.PHP'] as $path) {
+            foreach ([200, 302] as $status) {
+                $this->assertFalse($rule->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+            }
+
+            $this->assertTrue($rule->matches($this->makeRequest('GET', $path), $this->response(404)), "$path 404");
+        }
+
+        // 只有入口脚本本身例外，别的 .php 照样不看状态码
+        foreach (['/index.php.bak', '/public/index.php', '/x/index.php', '/index2.php'] as $path) {
+            $this->assertTrue($rule->matches($this->makeRequest('GET', $path), $this->response(200)), $path);
+        }
+
+        // 入口脚本按 SCRIPT_NAME 认：放在子目录下时是 /app/index.php
+        $request = $this->makeRequest('GET', '/app/index.php');
+        $request->server->set('SCRIPT_NAME', '/app/index.php');
+        $this->assertFalse($rule->matches($request, $this->response(200)));
+    }
+
+    /**
+     * 2026-11-07 第二次补充的 [any-status] 条目：每条一个样例，宿主回 200 也算。
+     */
+    public static function addedAnyStatus(): array
+    {
+        return [
+            '.git-credentials' => ['/.git-credentials'], '.kube' => ['/.kube/config'], 'terraform.tfstate' => ['/terraform.tfstate'],
+            'sftp-config.json' => ['/sftp-config.json'], 'ftpsync.settings' => ['/ftpsync.settings'], 'sftp.json' => ['/sftp.json'],
+            'service-account-credentials.json' => ['/service-account-credentials.json'],
+            'serviceaccountcredentials.json' => ['/serviceAccountCredentials.json'],
+            '.netrc' => ['/.netrc'], '.pgpass' => ['/.pgpass'], '.my.cnf' => ['/.my.cnf'], '.pypirc' => ['/.pypirc'],
+            '.psql_history' => ['/.psql_history'], '.sqlite_history' => ['/.sqlite_history'], '.rediscli_history' => ['/.rediscli_history'],
+            '.node_repl_history' => ['/.node_repl_history'], '@fs' => ['/@fs/etc/passwd'], '@id' => ['/@id/x'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('addedAnyStatus')]
+    public function added_any_status_entries_match_regardless_of_status(string $path): void
+    {
+        foreach ([200, 302, 404] as $status) {
+            $this->assertTrue((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+    }
+
+    /**
+     * 2026-11-07 第二次补充的 [non-success] 条目（以及从「环境与配置文件」挪来的前端运行时配置）：每条一个样例。
+     */
+    public static function addedNonSuccess(): array
+    {
+        return [
+            '_profiler 带前端控制器' => ['/app_dev.php/_profiler/empty/search/results'], 'livewire' => ['/livewire/update'],
+            'symfony.lock' => ['/symfony.lock'], 'phpstan.neon' => ['/phpstan.neon'], 'psalm.xml' => ['/psalm.xml'],
+            'phpcs.xml' => ['/phpcs.xml.dist'], 'webpack.mix.js' => ['/webpack.mix.js'], 'vite.config.js' => ['/vite.config.js'],
+            'opcache-status' => ['/php-opcache-status/'], 'auth.json' => ['/backup/auth.json'], '.php_history' => ['/.php_history'],
+            'appsettings.json' => ['/appsettings.json'], 'appsettings.production.json' => ['/appsettings.Production.json'],
+            'google-services.json' => ['/android/app/google-services.json'], 'credentials.json' => ['/credentials.json'],
+            '.travis.yml' => ['/.travis.yml'], 'bitbucket-pipelines.yml' => ['/bitbucket-pipelines.yml'],
+            'node_modules' => ['/node_modules/.bin/x'], 'roundcube' => ['/roundcube/'], 'webmail' => ['/webmail'], 'horde' => ['/horde/login'],
+            'jolokia' => ['/api/jolokia/read'], 'nginx_status' => ['/nginx_status'], 'pprof' => ['/debug/pprof/heap'],
+            'debug/default/view' => ['/frontend/web/debug/default/view'], 'app/etc/local.xml' => ['/app/etc/local.xml'],
+            'awstats' => ['/awstats/data'],
+            'env.js' => ['/env.js'], 'env.json' => ['/env.json'], 'env.dev.js' => ['/env.dev.js'], 'env.test.js' => ['/env.test.js'],
+            'env.production.js' => ['/env.production.js'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('addedNonSuccess')]
+    public function added_non_success_entries_need_an_unsuccessful_response(string $path): void
+    {
+        $rule = new SensitivePath;
+
+        foreach ([200, 304] as $status) {
+            $this->assertFalse($rule->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+
+        foreach ([403, 404, 500] as $status) {
+            $this->assertTrue($rule->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+    }
+
+    public static function addedNearMisses(): array
+    {
+        return [
+            ['/kube/config'], ['/my.cnf'], ['/sftp-config.yaml'], ['/terraform'], ['/auth'], ['/auth/login'], ['/credentials'],
+            ['/appsettings'], ['/mail/inbox'], ['/live/wire'], ['/debug'], ['/nginx_status/extra'], ['/@vite/client'], ['/fs/x'],
+            ['/environment.js'], ['/app/env'], ['/merchant/auth/login'], ['/v1/credentials/rotate'], ['/node_module/x'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('addedNearMisses')]
+    public function added_entries_do_not_catch_near_misses(string $path): void
+    {
+        foreach ([200, 403, 404] as $status) {
+            $this->assertFalse((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
         }
     }
 

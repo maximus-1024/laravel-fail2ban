@@ -31,7 +31,7 @@ final class CompiledLists
     /**
      * 本请求里已经 require 过的产物（opcache 下只是指向共享内存的一个引用）。
      *
-     * @var array<class-string, array<string, string>>|null
+     * @var array<class-string, array<string, string|list<string>>>|null
      */
     private static ?array $compiled = null;
 
@@ -39,7 +39,7 @@ final class CompiledLists
      * 一个规则类的编译产物（它的 compile() 对内置清单的结果）；产物里没有这个类时返回 null。
      *
      * @param  class-string  $class
-     * @return array<string, string>|null
+     * @return array<string, string|list<string>>|null
      */
     public static function for(string $class): ?array
     {

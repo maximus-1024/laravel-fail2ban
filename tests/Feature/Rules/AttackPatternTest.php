@@ -75,6 +75,41 @@ class AttackPatternTest extends RuleTestCase
             'bzip2 包装器' => ['/x?f=compress.bzip2:///etc/passwd'],
             'rar 包装器' => ['/x?f=rar:///tmp/a.rar'],
             'ssh2 包装器' => ['/x?f=ssh2.exec://user@host/id'],
+            // 2026-11-07 补充：其余 PHP ini 指令（同一段里「指令=值」，或带 -d 开关）
+            'ini auto_append_file 编码等号' => ['/index.php?-d+auto_append_file%3d/tmp/x'],
+            'ini cgi.force_redirect 软连字符' => ['/?%ADd+cgi.force_redirect%3d0'],
+            'ini cgi.redirect_status_env' => ['/?-d+cgi.redirect_status_env%3d'],
+            'ini open_basedir 带 -d' => ['/?-d+open_basedir=/'],
+            'ini disable_functions' => ['/?x=disable_functions%3d'],
+            'ini safe_mode 带 -d' => ['/?-d+safe_mode=0'],
+            'data 包装器' => ['/x?page=data://text/plain;base64,PD9waHAgcGhwaW5mbygpOz8%2B'],
+            // 2026-11-07 补充：模板注入算术探针
+            '模板探针 双花括号' => ['/docs/1.0/?q={{7*7}}'],
+            '模板探针 双花括号编码' => ['/x?name=%7B%7B7*7%7D%7D'],
+            '模板探针 带空格' => ['/x?name={{+1337+*+1337+}}'],
+            '模板探针 美元' => ['/x?q=${1337*1337}'],
+            '模板探针 井号' => ['/x?q=%23%7B7*7%7D'],
+            '模板探针 尖括号百分号' => ['/x?q=<%25=+7*7+%25>'],
+            '模板探针 在路径里' => ['/%7B%7B7*7%7D%7D'],
+            // 2026-11-07 补充：云元数据地址
+            '云元数据 AWS' => ['/x?url=http://169.254.169.254/latest/meta-data/'],
+            '云元数据 ECS 编码' => ['/x?url=http%3A%2F%2F169.254.170.2%2Fv2%2Fcredentials'],
+            '云元数据 GCP' => ['/x?u=http://metadata.google.internal/computeMetadata/v1/'],
+            '云元数据 instance-data' => ['/x?u=http://instance-data/latest/'],
+            // 2026-11-07 补充：盲注回连域名（每个一条）
+            '回连 oast.fun' => ['/x?notify_url=http://c6abc123.oast.fun/'],
+            '回连 oast.live' => ['/x?u=https://c6abc123.oast.live'],
+            '回连 oast.me' => ['/x?u=c6abc123.oast.me'],
+            '回连 oast.online' => ['/x?u=http%3A%2F%2Fc6abc123.oast.online%2Fx'],
+            '回连 oast.pro' => ['/x?u=c6abc123.oast.pro'],
+            '回连 oast.site' => ['/x?u=c6abc123.oast.site'],
+            '回连 oastify' => ['/x?u=abc.oastify.com'],
+            '回连 burpcollaborator' => ['/x?u=abc.burpcollaborator.net'],
+            '回连 interact.sh' => ['/x?u=abc.interact.sh'],
+            '回连 dnslog.cn' => ['/x?u=abc.dnslog.cn'],
+            '回连 ceye.io' => ['/x?u=abc.ceye.io'],
+            '回连 dnshook.site' => ['/x?u=abc.dnshook.site'],
+            '回连 在路径里' => ['/proxy/abc.oast.fun/x'],
         ];
     }
 
@@ -179,6 +214,20 @@ class AttackPatternTest extends RuleTestCase
             '美元下划线' => ['/x?description=%24_price+list'],
             '问号等号' => ['/x?description=why%3F%3Dbecause'],
             'zip 单词' => ['/x?description=zlib+compress+bzip2+rar+ogg+files'],
+            // 与 2026-11-07 补充的特征相近的正常写法
+            '普通的 safe_mode 参数' => ['/x?safe_mode=1&open_basedir=no&disable_functions=none'],
+            'cgi 字样' => ['/x?path=/cgi.bin/test&d=open_basedir'],
+            '图片 data URI' => ['/x?avatar=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'],
+            'data 单词' => ['/x?type=data&src=metadata:x'],
+            '模板占位' => ['/x?tpl={{amount}}&t=${order_no}&u=#{name}'],
+            '乘法文字' => ['/x?remark=7*7=49&price=2+*+3&expr={7*7}'],
+            '模板里有括号但不是两数相乘' => ['/x?tpl={{price*qty}}'],
+            '链路本地地址' => ['/x?ip=169.254.1.1&ip2=169.254.169.25&ip3=10.169.254.169'],
+            'metadata 与 instance 字样' => ['/x?metadata=%7B%22a%22%3A1%7D&instance=data&kind=instance-data-export'],
+            'toast 与 coast' => ['/x?remark=toast+on+the+coast&notify_url=https://api.toast.com/notify'],
+            '近似回连域名' => ['/x?u=https://interact.shop/cb&dns=dnslog&v=ceye.iot&w=x.oast.media'],
+            'webhook.site 调试回调' => ['/x?notify_url=https://webhook.site/7c1d4c2e-0b8f-4f43-9c0a-123456789abc'],
+            'canarytokens' => ['/x?u=http://x.canarytokens.com/abc'],
         ];
     }
 

@@ -66,6 +66,11 @@ final class Subject
     private ?array $queryPieces = null;
 
     /**
+     * 预筛的匹配对象（小写原样路径 + "/"）；路径含预筛字符或需要解码、归一化时为 false。
+     */
+    private string|false|null $gateSubject = null;
+
+    /**
      * 读过的请求头原值（HeaderBag::get() 每次都要规范化头名，几条规则都看浏览器标识）。
      *
      * @var array<string, string>
@@ -213,6 +218,41 @@ final class Subject
         }
 
         return $this->pathCandidates = $candidates;
+    }
+
+    /**
+     * 地址清单的廉价预筛：pathCandidates() 里可能有字符串含 PatternList::GATE_CHARS 中的某个字符、
+     * 或命中预筛正则 $gate（PatternList::gate() 的结果）时返回 true。返回 false 时保证一个都没有，
+     * 也就一定不会命中那份清单；返回 true 只表示「可能」，交给完整的正则。
+     *
+     * 为什么成立：原样路径里没有 "%"（不会被解码改变）、反斜杠、空字节（不会被清理改变）、"//"（不会被合并），
+     * 并且以 "/" 开头（不会被补开头斜杠）时，归一化只会去掉末尾斜杠（处理 "/./" 要有 "."，已被预筛字符覆盖），
+     * 候选只剩「去掉末尾斜杠的路径」与「它补一个斜杠」两种，二者都是「小写原样路径 + "/"」的子串，
+     * 预筛正则只有「包含」分支，在这个串上查就够了。其它情况一律返回 true。
+     */
+    public function pathMayMatch(string $gate): bool
+    {
+        if ($this->gateSubject === null) {
+            $path = strtolower($this->path());
+
+            $this->gateSubject = $path[0] !== '/' || str_contains($path, '//')
+                || strpbrk($path, PatternList::GATE_CHARS."%\\\0") !== false
+                    ? false
+                    : $path.'/';
+        }
+
+        return $this->gateSubject === false || preg_match($gate, $this->gateSubject) === 1;
+    }
+
+    /**
+     * 请求的就是宿主的入口脚本本身（SCRIPT_NAME，Laravel 是 /index.php）：它是真实存在的页面，
+     * 不能因为符合 "*.php" 就不看状态码地算。
+     */
+    public function isFrontController(): bool
+    {
+        $script = (string) $this->request->getScriptName();
+
+        return $this->pathVariants() === [self::normalizePath(strtolower($script === '' ? '/index.php' : $script))];
     }
 
     /**

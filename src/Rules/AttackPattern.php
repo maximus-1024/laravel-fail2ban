@@ -8,7 +8,8 @@ use Maximus\Fail2Ban\Rules\Support\Subject;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * 攻击特征：路径或查询参数里出现高把握的 SQL 注入、跨站脚本、路径穿越、命令执行片段；
+ * 攻击特征：路径或查询参数里出现高把握的 SQL 注入、跨站脚本、路径穿越、命令执行、PHP 注入片段，
+ * 模板注入的算术探针，云元数据地址或盲注回连域名；
  * 或请求方法是 CONNECT、TRACE；或把本站当代理用（请求行里是完整的外部网址）。
  *
  * 不看状态码，不读请求正文。PUT、PATCH、DELETE 是正常方法。参数值是一个网址不算：
@@ -39,6 +40,9 @@ class AttackPattern implements Rule
         'php://', 'phar://', 'expect://', 'glob://', 'zip://', 'gopher://', 'dict://', 'file://',
         'zlib://', 'bzip2://', 'rar://', 'ogg://', 'ssh2.',
         '&&', 'call_user_func_array', 'invokefunction', 'allow_url_include', 'auto_prepend_file', 'java.lang',
+        'auto_append_file', 'cgi.', 'open_basedir', 'disable_functions', 'safe_mode', 'data://',
+        '169.254.', 'metadata.google', 'instance-data',
+        'oast', 'burpcollaborator', 'interact.sh', 'dnslog', 'ceye.io', 'dnshook',
     ];
 
     /**
@@ -95,6 +99,29 @@ class AttackPattern implements Rule
             '\$_(?:get|post|request|cookie|files|server|env|session)\s*\[', // 933130 超全局变量，要求后面跟 [
             '\b[oc]:\d{1,5}:"[a-z0-9_\\\\]{1,128}":\d{1,5}:\{',               // 933170 序列化对象
             '\b(?:compress\.)?(?:zlib|bzip2)://|\b(?:rar|ogg)://|\bssh2\.(?:shell|exec|tunnel|sftp|scp)://', // 933200 包装器
+            // 2026-11-07 补充。933120 的配置指令里其余几个（display_errors、precision 这类常见词不收）：
+            // 「指令=值」写在同一段里（PHP-CGI 参数注入要编码等号，如 nuclei CVE-2024-4577 的 cgi.force_redirect%3d0），
+            // 或前面带 -d 开关。普通的 ?safe_mode=1 拆成参数名与值两段，不算。
+            '\b(?:auto_append_file|cgi\.force_redirect|cgi\.redirect_status_env|open_basedir|disable_functions|safe_mode)\s*=',
+            '(?:^|\s)[-\xad]d\s*(?:auto_append_file|cgi\.force_redirect|cgi\.redirect_status_env|open_basedir|disable_functions|safe_mode)\b',
+            // PHP 的 data:// 包装器（带双斜杠）。浏览器的 data URI（data:image/png;base64,…）不带双斜杠，不算。
+            '\bdata://',
+        ],
+        // 2026-11-07 按 OWASP CRS 934180、934200（服务端模板注入）补充：只收「两个整数相乘」的探针，
+        // 如 {{7*7}}、${7*7}、#{7*7}、<%= 7*7 %>；带括号的通用写法（Vue、Handlebars 的文字里会有）不收。
+        '模板注入探针' => [
+            '\{\{\s*\d{1,10}\s*\*\s*\d{1,10}\s*\}\}',
+            '[$#]\{\s*\d{1,10}\s*\*\s*\d{1,10}\s*\}',
+            '<%=?\s*\d{1,10}\s*\*\s*\d{1,10}\s*%>',
+        ],
+        // 2026-11-07 补充。云元数据地址：OWASP CRS ssrf.data（934110 用），只收这几个具体主机，
+        // 参数值是任意网址仍不算。盲注回连域名：Sigma net_dns_external_service_interaction_domains.yml，
+        // 不收 webhook.site（商户调试回调会用）与 canarytokens.com（有人拿来做蜜标测试）。
+        '服务端请求伪造与回连' => [
+            '\b169\.254\.(?:169\.254|170\.2)\b',
+            '\bmetadata\.google\.internal\b',
+            '//instance-data\b',
+            '\.(?:oast\.(?:fun|live|me|online|pro|site)|oastify\.com|burpcollaborator\.net|interact\.sh|dnslog\.cn|ceye\.io|dnshook\.site)\b',
         ],
     ];
 
@@ -115,7 +142,7 @@ class AttackPattern implements Rule
 
     public function description(): string
     {
-        return '路径或查询参数里出现 SQL 注入、跨站脚本、路径穿越、命令执行、PHP 代码注入的片段，或请求方法是 CONNECT、TRACE，或把本站当代理用时记一次；同一个「路径加查询参数」只算一次。参数值是网址不算。';
+        return '路径或查询参数里出现 SQL 注入、跨站脚本、路径穿越、命令执行、PHP 代码注入的片段、模板注入探针、云元数据地址或盲注回连域名，或请求方法是 CONNECT、TRACE，或把本站当代理用时记一次；同一个「路径加查询参数」只算一次。参数值是普通网址不算。';
     }
 
     public function isPathRule(): bool

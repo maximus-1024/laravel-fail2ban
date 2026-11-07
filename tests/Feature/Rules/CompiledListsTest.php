@@ -7,6 +7,7 @@ use Maximus\Fail2Ban\Rules\KnownExploit;
 use Maximus\Fail2Ban\Rules\ScannerAgent;
 use Maximus\Fail2Ban\Rules\SensitivePath;
 use Maximus\Fail2Ban\Rules\Support\CompiledLists;
+use Maximus\Fail2Ban\Rules\Support\PatternList;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionProperty;
 
@@ -66,10 +67,12 @@ class CompiledListsTest extends RuleTestCase
     #[Test]
     public function default_rules_take_the_artifact_and_customized_rules_compile_at_runtime(): void
     {
-        // 换成一份假的产物：不配追加、排除的规则用的就是它，证明运行时不读文本清单
+        // 换成一份假的产物：不配追加、排除的规则用的就是它，证明运行时不读文本清单。
+        // 预筛正则写成什么都放行的 "~~"：配了追加、排除的规则仍用产物里的预筛（真实产物与文本清单一致，
+        // 排除只会让清单变小，见 MatchesPathsByStatus::gates()），这里只验证完整清单是现编的。
         $this->setCompiled([
-            SensitivePath::class => ['regex' => '~^/only\-in\-artifact$~D'],
-            KnownExploit::class => ['paths' => '~^/exploit\-in\-artifact$~D', 'queries' => '~(?!)~'],
+            SensitivePath::class => ['any' => '~^/only\-in\-artifact$~D', 'any_gate' => ['~~'], 'non_success' => '~(?!)~', 'non_success_gate' => ['~~']],
+            KnownExploit::class => ['any' => '~^/exploit\-in\-artifact$~D', 'any_gate' => ['~~'], 'non_success' => '~(?!)~', 'non_success_gate' => ['~~'], 'queries' => '~(?!)~'],
             ScannerAgent::class => ['regex' => '~artifactbot~'],
         ]);
 
@@ -84,6 +87,8 @@ class CompiledListsTest extends RuleTestCase
         // 宿主追加或排除了条目：读文本清单现编，假产物不起作用
         $this->assertTrue((new SensitivePath(extra: ['/mine']))->matches($this->makeRequest('GET', '/.env'), $notFound));
         $this->assertFalse((new SensitivePath(extra: ['/mine']))->matches($this->makeRequest('GET', '/only-in-artifact'), $notFound));
+        $this->assertTrue((new SensitivePath(extraAnyStatus: ['/mine']))->matches($this->makeRequest('GET', '/.env'), $notFound));
+        $this->assertFalse((new SensitivePath(extraAnyStatus: ['/mine']))->matches($this->makeRequest('GET', '/only-in-artifact'), $notFound));
         $this->assertTrue((new ScannerAgent(except: ['nikto']))->matches($this->makeRequest('GET', '/', ['User-Agent' => 'sqlmap/1.7']), $notFound));
         $this->assertTrue((new KnownExploit(except: ['*/voyager-assets*']))->matches($this->makeRequest('GET', '/_ignition/execute-solution'), $notFound));
 
@@ -98,12 +103,15 @@ class CompiledListsTest extends RuleTestCase
         {
             public static function compile(array $entries): array
             {
-                return parent::compile([...$entries, '/subclass-only']);
+                $entries[PatternList::NON_SUCCESS][] = '/subclass-only';
+
+                return parent::compile($entries);
             }
         };
 
         $this->assertNull(CompiledLists::for($rule::class));
         $this->assertTrue($rule->matches($this->makeRequest('GET', '/subclass-only'), $this->response(404)));
+        $this->assertFalse($rule->matches($this->makeRequest('GET', '/subclass-only'), $this->response(200)));
         $this->assertTrue($rule->matches($this->makeRequest('GET', '/.env'), $this->response(404)));
     }
 }

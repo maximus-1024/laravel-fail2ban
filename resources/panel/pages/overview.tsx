@@ -46,7 +46,7 @@ function Kpi({ title, value, hint, action }: { title: string; value?: number; hi
 
 function CardLink({ to, children }: { to: React.ComponentProps<typeof Link>["to"]; children: React.ReactNode }) {
   return (
-    <Button variant="link" size="sm" asChild>
+    <Button variant="outline" size="sm" asChild>
       <Link to={to}>{children}</Link>
     </Button>
   )

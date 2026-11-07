@@ -50,7 +50,7 @@ export function IncidentRow({ incident: i, showId, onOpen }: { incident: Inciden
     <TableRow className="cursor-pointer" onClick={() => onOpen(i.id)}>
       <TableCell>{formatTime(i.time)}</TableCell>
       <TableCell>
-        <Button variant="link" className="px-0 font-mono" onClick={() => onOpen(i.id)}>
+        <Button variant="ghost" size="sm" className="-ml-2.5 font-mono" onClick={() => onOpen(i.id)}>
           {i.visitor}
         </Button>
       </TableCell>

@@ -1,3 +1,4 @@
+import { CopyIcon } from "lucide-react"
 import { AllowDialog } from "@/components/allow-dialog"
 import { ConfirmUnban } from "@/components/confirm-button"
 import { DispositionBadge, EmptyState, LoadError, RuleText } from "@/components/shared"
@@ -8,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { api, type IncidentDetail } from "@/lib/api"
 import { formatClock, formatRemaining, formatTime, humanMinutes, regionName } from "@/lib/format"
+import { copyText } from "@/lib/clipboard"
 import { useApi } from "@/lib/use-api"
 
 /** 一行键值：表头列放字段名，值可以换行。 */
@@ -17,6 +19,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <TableHead scope="row" className="w-24 whitespace-normal">{label}</TableHead>
       <TableCell className="whitespace-normal wrap-anywhere">{children}</TableCell>
     </TableRow>
+  )
+}
+
+/** 等宽文字后面的复制按钮。 */
+function CopyButton({ text, what }: { text: string; what: string }) {
+  return (
+    <Button variant="ghost" size="icon-xs" className="ml-1 align-middle" aria-label={`复制${what.trim()}`} onClick={() => copyText(text, what)}>
+      <CopyIcon />
+    </Button>
   )
 }
 
@@ -76,13 +87,18 @@ function Body({ d, onChanged }: { d: IncidentDetail; onChanged: () => void }) {
           <TableBody>
             <Row label="访客 IP">
               <span className="font-mono">{d.visitor}</span>
+              <CopyButton text={d.visitor} what=" IP" />
             </Row>
             <Row label="国家或地区">{d.region ? regionName(d.region) : "未知"}</Row>
             <Row label="浏览器标识">
               <span className="font-mono">{d.user_agent ?? "—"}</span>
             </Row>
-            <Row label="首次命中">{formatTime(d.first_hit_at)}</Row>
-            <Row label="触发封禁">{formatTime(d.banned_at ?? d.time)}</Row>
+            <Row label="首次命中">
+              <span className="font-mono">{formatTime(d.first_hit_at)}</span>
+            </Row>
+            <Row label="触发封禁">
+              <span className="font-mono">{formatTime(d.banned_at ?? d.time)}</span>
+            </Row>
             {d.unban_at && (
               <Row label="解封时间">
                 {formatTime(d.unban_at)}
@@ -126,7 +142,10 @@ export function IncidentSheet({ id, onClose, onChanged }: { id: string | null; o
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>事件详情</SheetTitle>
-          <SheetDescription>{id}</SheetDescription>
+          <SheetDescription className="font-mono">
+            {id}
+            {id && <CopyButton text={id} what="事件编号" />}
+          </SheetDescription>
         </SheetHeader>
         {id && <Loader id={id} onChanged={onChanged} />}
       </SheetContent>

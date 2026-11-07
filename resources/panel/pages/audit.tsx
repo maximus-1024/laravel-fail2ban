@@ -1,93 +1,98 @@
-import { InfoIcon } from "lucide-react"
-import * as React from "react"
-import { ALL, EmptyRow, LoadError, LoadingRows, Pager } from "@/components/shared"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { createColumnHelper, useTable } from "@tanstack/react-table"
+import { CopyIcon } from "lucide-react"
+import { DataTable, DataTablePagination, DataTableToolbar, RowActions, features, filterValue, useTableState, type Features } from "@/components/data-table"
+import { PageHeader } from "@/components/page-header"
+import { LoadError } from "@/components/shared"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { api, type AuditAction } from "@/lib/api"
-import { AUDIT_ACTIONS, AUDIT_VIA, formatTime } from "@/lib/format"
+import { Card, CardContent, CardDescription, CardFooter } from "@/components/ui/card"
+import { DropdownMenuGroup, DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { api, type AuditAction, type AuditEntry } from "@/lib/api"
+import { copyText } from "@/lib/clipboard"
+import { AUDIT_ACTIONS, AUDIT_VIA, formatNumber, formatTime } from "@/lib/format"
 import { useApi } from "@/lib/use-api"
 
-const PER_PAGE = 20
+const ACTION_OPTIONS = (Object.keys(AUDIT_ACTIONS) as AuditAction[]).map((a) => ({ value: a, label: AUDIT_ACTIONS[a] }))
+const column = createColumnHelper<Features, AuditEntry>()
+const NONE: AuditEntry[] = []
+
+const columns = column.columns([
+  column.accessor("time", {
+    header: "时间",
+    meta: { label: "时间" },
+    cell: ({ getValue }) => <span className="font-mono">{formatTime(getValue())}</span>,
+  }),
+  column.accessor("action", {
+    header: "操作",
+    filterFn: "arrIncludesSome",
+    meta: { label: "操作" },
+    cell: ({ getValue }) => <Badge variant="outline">{AUDIT_ACTIONS[getValue()] ?? getValue()}</Badge>,
+  }),
+  column.accessor("target", {
+    header: "对象",
+    enableHiding: false,
+    cell: ({ getValue }) => <span className="font-mono">{getValue()}</span>,
+  }),
+  column.accessor("detail", {
+    header: "详情",
+    meta: { label: "详情", className: "max-w-96 min-w-56 whitespace-normal" },
+  }),
+  column.accessor("operator", { header: "操作人", meta: { label: "操作人" } }),
+  column.accessor("via", {
+    header: "入口",
+    meta: { label: "入口" },
+    cell: ({ getValue }) => AUDIT_VIA[getValue()] ?? getValue(),
+  }),
+  column.display({
+    id: "actions",
+    enableHiding: false,
+    cell: ({ row: { original: a } }) => (
+      <RowActions label={`${a.target} 的更多操作`}>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={() => copyText(a.target, "对象")}>
+            <CopyIcon />
+            复制对象
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </RowActions>
+    ),
+  }),
+])
 
 export function AuditPage() {
-  const [action, setAction] = React.useState(ALL)
-  const [page, setPage] = React.useState(1)
+  const state = useTableState()
+  const { columnFilters, pagination } = state
+  const action = filterValue(columnFilters, "action")
   const { data, error, loading, reload } = useApi(
-    () => api.audit({ action: action === ALL ? undefined : action, page, per_page: PER_PAGE }),
-    [action, page],
+    () => api.audit({ action, page: pagination.pageIndex + 1, per_page: pagination.pageSize }),
+    [action, pagination.pageIndex, pagination.pageSize],
   )
+  const table = useTable({
+    features,
+    data: data?.data ?? NONE,
+    columns,
+    getRowId: (a, i) => `${a.time}-${i}`,
+    ...state.options,
+    manualPagination: true,
+    rowCount: data?.total ?? 0,
+  })
 
   return (
     <>
-      <Alert>
-        <InfoIcon />
-        <AlertDescription>管理员在面板和命令行里做的每一次改动都记在这里，最新的在最上面。攻击者触发的封禁在「攻击事件」里。</AlertDescription>
-      </Alert>
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={action}
-          onValueChange={(v) => {
-            setAction(v)
-            setPage(1)
-          }}
-        >
-          <SelectTrigger aria-label="操作类型">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={ALL}>全部操作</SelectItem>
-              {(Object.keys(AUDIT_ACTIONS) as AuditAction[]).map((a) => (
-                <SelectItem key={a} value={a}>
-                  {AUDIT_ACTIONS[a]}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
+      <PageHeader title="操作日志" description="管理员在面板和命令行里做的每一次改动都记在这里，最新的在最上面。攻击者触发的封禁在「攻击事件」里。" />
+      <DataTableToolbar table={table} filters={[{ columnId: "action", title: "操作类型", options: ACTION_OPTIONS }]} />
 
       {error ? <LoadError error={error} onRetry={reload} /> : null}
 
       <Card>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>时间</TableHead>
-                <TableHead>操作</TableHead>
-                <TableHead>对象</TableHead>
-                <TableHead>详情</TableHead>
-                <TableHead>操作人</TableHead>
-                <TableHead>入口</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && !data ? (
-                <LoadingRows cols={6} />
-              ) : !data || data.data.length === 0 ? (
-                <EmptyRow cols={6} text="还没有操作记录" />
-              ) : (
-                data.data.map((a, i) => (
-                  <TableRow key={`${a.time}-${i}`}>
-                    <TableCell>{formatTime(a.time)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{AUDIT_ACTIONS[a.action] ?? a.action}</Badge>
-                    </TableCell>
-                    <TableCell className="font-mono">{a.target}</TableCell>
-                    <TableCell className="max-w-96 min-w-56 whitespace-normal">{a.detail}</TableCell>
-                    <TableCell>{a.operator}</TableCell>
-                    <TableCell>{AUDIT_VIA[a.via] ?? a.via}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <DataTable table={table} loading={loading && !data} empty={action ? "没有符合条件的操作记录" : "还没有操作记录"} />
         </CardContent>
-        {data && <Pager page={data.page} perPage={data.per_page} total={data.total} historyLimit={data.history_limit} onPage={setPage} />}
+        <CardFooter>
+          <DataTablePagination
+            table={table}
+            summary={<CardDescription>{data ? `共 ${formatNumber(data.total)} 条，只保留最近 ${data.history_limit} 条` : "加载中…"}</CardDescription>}
+          />
+        </CardFooter>
       </Card>
     </>
   )

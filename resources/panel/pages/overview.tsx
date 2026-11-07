@@ -1,14 +1,16 @@
 import * as React from "react"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import { IncidentSheet } from "@/components/incident-sheet"
-import { EmptyRow, EmptyState, IncidentRow, LoadError, LoadingRows } from "@/components/shared"
+import { DataTable } from "@/components/data-table"
+import { useIncidentTable } from "@/components/incident-table"
+import { PageHeader } from "@/components/page-header"
+import { EmptyState, LoadError } from "@/components/shared"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { api, type Overview, type Ranked } from "@/lib/api"
 import { formatHour, formatNumber, formatTime, regionName } from "@/lib/format"
 import { Link } from "@/lib/router"
@@ -74,7 +76,7 @@ function RankCard({ title, rows, unit, mono, percent }: { title: string; rows?: 
                     {r.key}
                   </ItemTitle>
                 </ItemContent>
-                <ItemActions>{percent && total ? `${Math.round((r.count / total) * 100)}%` : `${formatNumber(r.count)} ${unit}`}</ItemActions>
+                <ItemActions className="tabular-nums">{percent && total ? `${Math.round((r.count / total) * 100)}%` : `${formatNumber(r.count)} ${unit}`}</ItemActions>
               </Item>
             ))}
           </ItemGroup>
@@ -118,28 +120,34 @@ export function OverviewPage() {
   const [incident, setIncident] = React.useState<string | null>(null)
   const { data, error, reload } = useApi(() => api.overview(Number(hours)), [hours])
 
+  const recent = useIncidentTable({ data: data?.recent, onOpen: setIncident, compact: true, options: { manualPagination: true } })
+
   return (
     <>
-      <div className="flex items-center justify-end">
-        <Select value={hours} onValueChange={setHours}>
-          <SelectTrigger aria-label="统计时间范围">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {RANGES.map((r) => (
-                <SelectItem key={r.value} value={r.value}>
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
+      <PageHeader
+        title="安全总览"
+        description="规则命中、拦截与封禁的整体情况，以及最活跃的攻击来源。"
+        actions={
+          <Select value={hours} onValueChange={setHours}>
+            <SelectTrigger aria-label="统计时间范围">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {RANGES.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        }
+      />
 
       {error ? <LoadError error={error} onRetry={reload} /> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:gap-6 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi title="命中规则的请求" value={data?.kpis.hits} hint="次" />
         <Kpi title="已拦截请求" value={data?.kpis.blocked} hint="次，来自被封禁的访客" />
         <Kpi title="累犯访客" value={data?.kpis.repeat_offenders} hint="个，封禁时长已加长" />
@@ -147,7 +155,7 @@ export function OverviewPage() {
         <Kpi title="当前封禁中" value={data?.kpis.active_bans} hint="个访客" action={<CardLink to="/bans">查看封禁列表</CardLink>} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>规则命中与拦截趋势</CardTitle>
@@ -184,7 +192,7 @@ export function OverviewPage() {
         <RulesCard data={data} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         <RankCard title="攻击源 IP 排行" rows={data?.top_ips} unit="次" mono />
         <RankCard title="攻击目标排行" rows={data?.top_targets} unit="次" mono />
         <RankCard title="来源地区排行" rows={data?.top_regions.map((r) => ({ ...r, key: regionName(r.key) }))} unit="次" percent />
@@ -198,27 +206,7 @@ export function OverviewPage() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>时间</TableHead>
-                <TableHead>攻击 IP</TableHead>
-                <TableHead>地区</TableHead>
-                <TableHead>触发规则</TableHead>
-                <TableHead>命中次数</TableHead>
-                <TableHead>处置</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {!data ? (
-                <LoadingRows cols={6} rows={5} />
-              ) : data.recent.length === 0 ? (
-                <EmptyRow cols={6} text="还没有攻击事件" />
-              ) : (
-                data.recent.map((i) => <IncidentRow key={i.id} incident={i} onOpen={setIncident} />)
-              )}
-            </TableBody>
-          </Table>
+          <DataTable table={recent} loading={!data} empty="还没有攻击事件" onRowClick={(i) => setIncident(i.id)} />
         </CardContent>
       </Card>
 

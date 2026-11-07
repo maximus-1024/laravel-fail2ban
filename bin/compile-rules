@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+
+/*
+ * 从 resources/rules/*.txt 重新生成 resources/rules/compiled.php（见 Maximus\Fail2Ban\Rules\Support\CompiledLists）。
+ *
+ * 改了任何一份文本清单之后运行，并把两者一起提交：
+ *
+ *     composer compile-rules
+ *
+ * 加 --check 只检查不写入：产物过期时以非零状态退出（可放进 CI）。
+ */
+
+use Maximus\Fail2Ban\Rules\Support\CompiledLists;
+
+require dirname(__DIR__).'/vendor/autoload.php';
+
+$source = CompiledLists::source();
+$current = @file_get_contents(CompiledLists::FILE);
+
+if (in_array('--check', $argv, true)) {
+    if ($current !== $source) {
+        fwrite(STDERR, "resources/rules/compiled.php 已过期，请运行 composer compile-rules。\n");
+        exit(1);
+    }
+
+    echo "resources/rules/compiled.php 与文本清单一致。\n";
+    exit(0);
+}
+
+if ($current === $source) {
+    echo "resources/rules/compiled.php 已是最新。\n";
+    exit(0);
+}
+
+file_put_contents(CompiledLists::FILE, $source);
+
+echo "已重新生成 resources/rules/compiled.php。\n";

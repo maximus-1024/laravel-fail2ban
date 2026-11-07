@@ -1,0 +1,405 @@
+# 敏感文件探测（sensitive-path）的地址清单。只在响应是 404 时才看，默认 10 分钟内 3 个不同地址才封。
+#
+# 格式见 src/Rules/Support/PatternList.php：只有首尾的 * 是通配符，不分大小写。
+# 匹配对象是归一化后的路径（不含查询参数），并且同时试「末尾补一个斜杠」的形式，
+# 所以 "*/.git/*" 同时命中 "/.git" 与 "/.git/config"。
+#
+# 条目数：262（七组）。核对日期：2026-11-07。
+#
+# 出处（均在 2026-11-07 在线打开核对）：
+#   CrowdSec http-sensitive-files（按「结尾」匹配）     https://hub-data.crowdsec.net/web/sensitive_data.txt
+#   CrowdSec http-admin-interface-probing             https://hub-data.crowdsec.net/web/admin_interfaces.txt
+#   CrowdSec http-backdoors-attempts                  https://hub-data.crowdsec.net/web/backdoors.txt
+#     （208 个后门文件名全部以 .php/.asp/.aspx/.jsp/.pl 等结尾，已被下面「脚本后缀」覆盖，
+#       不再逐个列出；其中没有后缀的 "t4" 太泛，不收。）
+#   nuclei-templates（提交 82ccd2a）https://github.com/projectdiscovery/nuclei-templates 的
+#     http/exposures 与 http/misconfiguration：Laravel 与 PHP 专项条目、具体的 yml 文件名、
+#     shell 历史文件，逐条见下面各组的注释。
+#   「其它平台的已知漏洞地址」一组的出处写在组内。
+#   「备份与数据库导出」里 CrowdSec 没有的扩展名（.zip .tar .gz .7z .db .sqlite .dump .old .orig
+#     .swp 等）、「环境与配置文件」里的 .ini .conf .cfg .config .pem .key .ppk .p12 .pfx：
+#     第一版按常识整理，没有逐条对应到出处；它们都是 Laravel 接口绝不会提供、又只在 404 时才算的
+#     后缀，误伤面小，保留。
+#
+# 本次（2026-11-07）的调整：
+#   收紧（理由：对一个 Laravel 支付接口太宽）：
+#     "*.yml"、"*.yaml" → 删掉，换成 nuclei 实际探测的具体文件名（user_secrets.yml、parameters.yml、
+#       security.yml、settings.yml、configuration.yml、storage.yml、serverless.yml/.yaml、phinx.yml、
+#       .circleci/、.gitlab-ci.yml、gitlab-ci.yml，docker-compose 的各种变体合成 "*/docker-compose*"）。
+#       原因：商户开发对接时会试 /openapi.yaml、/swagger.yaml、/api.yaml 找接口描述，
+#       这份清单的「没收」里本来就排除了 swagger 与 api-docs，后缀条目却把 yaml 版本抓了，
+#       三次就封两小时。
+#     "*_history" → 删掉，换成 .bash_history、.sh_history、.ksh_history、.zsh_history、.mysql_history、
+#       .history（CrowdSec 与 nuclei misconfiguration/shell-history.yaml、mysql-history.yaml）。
+#       原因：「以 _history 结尾」会抓到 /v1/transactions/pay_history、/order_history 这类商户
+#       猜错的接口名。
+#   新加（Laravel 与 PHP 专项，出处为 nuclei 模板）：
+#     */.composer/* 与 */vendor/composer/installed.json（exposures/configs/composer-config.yaml）、
+#     */.composer-auth.json（exposures/files/composer-auth-json.yaml）、
+#     */phpunit.xml（exposures/files/phpunit.yaml）、*/.phpunit.result.cache
+#     （exposures/files/phpunit-result-cache-exposure.yaml）、*/.php_cs.cache（exposures/files/php-cs-cache.yaml）、
+#     /nova/*（misconfiguration/laravel-nova-unauth.yaml）、/laravel-filemanager/*
+#     （exposed-panels/laravel-filemanager.yaml）、*/storage/sessions/*（misconfiguration/laravel-sessions-exposure.yaml）、
+#     /_profiler/*（Symfony，exposures/configs/symfony-profiler.yaml）。
+#   挪来：已知漏洞探测里不属于 PHP 生态的 63 条，见最后一组。
+#   核对了但没加：
+#     /vendor/*：Telescope、Horizon 把前端文件发布在 public/vendor/telescope、public/vendor/horizon 下，
+#       没发布或版本变了时运维打开面板就会连着几个 404，会把管理员自己封掉。
+#       /vendor 下真正危险的 phpunit 已在已知漏洞探测，installed.json 在本清单。
+#     /livewire/*：CVE-2025-54068 的 nuclei 模板先从首页抓 Livewire 的更新地址再打，
+#       找不到扫描器盲探 /livewire/update 的出处。
+#     Laravel 调试模式泄露（APP_DEBUG=true 时的报错页）：靠任何报错请求触发，没有固定的探测地址，
+#       地址清单做不了。/_ignition/* 已在本清单。
+#   没收的条目及原因（第一版就有）：
+#     /admin、/manager（CrowdSec 用「包含」匹配，太泛，宿主或商户前端的路径里可能出现）
+#     .pac（浏览器自动代理发现 /proxy.pac、/wpad.dat 是正常访客会发的请求）
+#     .xml（/sitemap.xml、/crossdomain.xml 这类正常探测）
+#     /swagger*、/api-docs*、*.yaml（商户开发对接时可能会试，交给 404 扫描去数）
+#     /.well-known/*（证书签发、security.txt、App 关联文件都用它）
+#     /autodiscover/*（Outlook 自动发现是正常客户端行为）
+
+## 环境与配置文件
+*/.env*
+*/env.bak
+*/env.backup
+*/env.json
+*/env.js
+*/env.dev.js
+*/env.test.js
+*/env.production.js
+*/test-env.json
+*.env
+*/.aws/*
+*/aws/credentials
+*/aws.yml
+*/aws-key.yml
+*/.s3cfg
+*/.awscfg
+*/secrets.yml
+*/secrets.json
+*/user_secrets.yml
+*/parameters.yml
+*/security.yml
+*/settings.yml
+*/configuration.yml
+*/storage.yml
+*/serverless.yml
+*/serverless.yaml
+*/phinx.yml
+*/.circleci/*
+*/.gitlab-ci.yml
+*/gitlab-ci.yml
+*/.docker/*
+*/docker-compose*
+*/dockerfile
+*/.dockerenv
+*/.npmrc
+*/.htaccess
+*/.htpasswd
+*.hta
+*/.ssh/*
+*/id_rsa*
+*/id_dsa*
+*/id_ecdsa*
+*/id_ed25519*
+*/.vscode/*
+*/.idea/*
+*/.ds_store
+*/.deployment-config.json
+*/.lanproxy/*
+*/.jupyter/*
+*/.cordova/*
+*/_wpeprivate/*
+*/.config/*
+*/.cache
+*/.msmtprc
+*/.forward
+*/.rhosts
+*/.profile
+*/.bashrc
+*/.passwd
+*/.pwd
+*/.perf
+*/.listing
+*/.listings
+*/.bash_history
+*/.sh_history
+*/.ksh_history
+*/.zsh_history
+*/.mysql_history
+*/.history
+*/composer.json
+*/composer.lock
+*/package.json
+*/package-lock.json
+*/yarn.lock
+*/vendor/composer/installed.json
+*/.composer/*
+*/.composer-auth.json
+*/phpunit.xml
+*/.phpunit.result.cache
+*/.php_cs.cache
+*/phpinfo*
+*/server-status*
+*/server-info
+*.ini
+*.conf
+*.cfg
+*.config
+*.pem
+*.key
+*.ppk
+*.p12
+*.pfx
+
+## 版本库目录
+*/.git/*
+*/.gitignore
+*/.gitlab-ci/*
+*/.svn/*
+*/.hg/*
+*/.bzr/*
+*/.cvs*
+*/cvs/root
+*/cvs/entries
+*/.subversion/*
+
+## 备份与数据库导出
+*.sql
+*.sql.gz
+*.sql.tar
+*.sql.bz2
+*.sql.bzip2
+*.sql.zip
+*.sql.rar
+*.sql.7z
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*.swp
+*~
+*.zip
+*.rar
+*.7z
+*.tar
+*.tgz
+*.gz
+*.bz2
+*.xz
+*.war
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+*.dump
+*.log
+
+## 常见后台入口
+*/phpmyadmin*
+*/pma/*
+*/myadmin/*
+*/mysqladmin/*
+*/adminer*
+*/wp-*
+*/wordpress/*
+*/administrator/*
+*/kcfinder/*
+*/+cscoe+/*
+*/dana-na/*
+*/sitecore/*
+*/solr/*
+*/scriptcase/*
+*/web/database/manager*
+*/sfmc/login*
+*/rsso/admin/*
+*/remote/login*
+*/commandcenter/*
+*/manager/html*
+*/jmx-console*
+*/web-console*
+*/jenkins/*
+*/druid/*
+*/nacos/*
+*/actuator*
+*/cgi-bin/*
+
+## 常见后门与脚本后缀（宿主是 Laravel，除 index.php 外不提供任何脚本文件）
+*.php
+*.php3
+*.php4
+*.php5
+*.php7
+*.php56
+*.phtml
+*.phar
+*.asp
+*.aspx
+*.ashx
+*.asmx
+*.axd
+*.jsp
+*.jspx
+*.do
+*.action
+*.cgi
+*.pl
+*.cfm
+*.exe
+*.dll
+*.bat
+*.printer
+
+## Laravel 专项：日志、调试与运维面板（装了这些面板时访问它们不会是 404，不会命中）
+*/storage/logs/*
+*/storage/framework/*
+*/bootstrap/cache/*
+/artisan
+/telescope/*
+/horizon/*
+/pulse/*
+/_ignition/*
+/_debugbar/*
+/clockwork/*
+/__clockwork/*
+/log-viewer/*
+/nova/*
+/laravel-filemanager/*
+*/storage/sessions/*
+/_profiler/*
+
+## 其它平台的已知漏洞地址（凑够出现次数才封）
+# 不是 Laravel 与 PHP 生态，不放进一次即封的清单。宿主是 Laravel，这些地址在宿主上
+# 都是 404，正常访客不会请求，留在这里按敏感文件探测计数。
+# 下面 30 条取自 CrowdSec 趋势漏洞 https://hub-data.crowdsec.net/web/trendy_cves_uris.json
+#   （2026-11-07 在线打开核对，CVE 编号照该文件；CVE-2025-64446 的长地址拆成了两条）：
+# CVE-2024-3400 PAN-OS
+*/global-protect/login.esp*
+# CVE-2024-3272 D-Link NAS
+*/cgi-bin/nas_sharing.cgi*
+# CVE-2018-12031
+*/server/node_upgrade_srv.js*
+# CVE-2021-36380
+*/cgi/networkdiag.cgi*
+# CVE-2020-27866 Netgear
+*/setup.cgi*
+# CVE-2024-4040 CrushFTP
+*/webinterface/login.html*
+*/webinterface/*
+# CVE-2024-24919 Check Point
+*/clients/mycrl*
+# CVE-2024-5806 MOVEit Transfer
+*/guestaccess.aspx*
+# CVE-2024-0769 D-Link
+*/hedwig.cgi*
+# CVE-2019-8318 HNAP
+*/hnap1/*
+# CVE-2024-8190 Ivanti CSA
+*/gsb/datetime.php*
+# CVE-2021-33044 大华
+*/rpc2_login*
+# CVE-2024-8963 Ivanti CSA
+*index.php%3f.php/*
+# CVE-2025-0108 PAN-OS
+*/unauth/%252e%252e/php/*
+# CVE-2025-31324 SAP NetWeaver
+*/developmentserver/metadatauploader*
+# CVE-2024-38653 Ivanti
+*/mdm/checkin*
+# CVE-2025-34509 Sitecore
+*/sitecore/api/ssc/auth/login*
+# CVE-2023-6549 Citrix
+*/nf/auth/startwebview.do*
+# CVE-2025-5777 Citrix
+*/p/u/doauthentication.do*
+# CVE-2025-25257 FortiWeb
+*/api/fabric/device/status*
+# CVE-2025-53770 SharePoint
+*/_layouts/15/toolpane.aspx*
+# CVE-2023-0669 / CVE-2024-0204 GoAnywhere
+*/goanywhere/lic/accept*
+*/goanywhere/images/..*
+# CVE-2025-64446 FortiWeb
+*/api/v2.0/cmdb/system/admin%3f/*
+*/cgi-bin/fwbcgi*
+# CVE-2025-59718 Fortinet
+*/remote/saml/login*
+# CVE-2025-40552 / CVE-2025-40553 SolarWinds Web Help Desk
+*/helpdesk/webobjects/helpdesk.woa/*
+# CVE-2026-20127
+*/reports/data/opt/data/containers/config/data-collection-agent/.dca*
+# CVE-2023-54391 Proxmox
+*/api2/json/access/ticket*
+#
+# 下面 33 条逐条在线核对过出处（核对日期 2026-11-07）：
+#   "nuclei:" 指 nuclei-templates（提交 82ccd2a）里含这个地址的模板；"MSF:" 指 Metasploit 模块源码
+#   https://github.com/rapid7/metasploit-framework/tree/master/modules 。
+# WebLogic：nuclei http/cves/2017/CVE-2017-10271.yaml（/wls-wsat/CoordinatorPortType）
+*/wls-wsat/*
+# WebLogic：nuclei http/cves/2019/CVE-2019-2729.yaml（/_async/AsyncResponseService）
+*/_async/asyncresponseservice*
+# WebLogic 控制台：nuclei http/cves/2020/CVE-2020-14882.yaml 与 CVE-2020-14883.yaml
+*console.portal*
+# JBoss：nuclei http/cves/2015/CVE-2015-7501.yaml（JMXInvokerServlet、readonly）、
+#   http/cves/2017/CVE-2017-12149.yaml（EJBInvokerServlet）
+*/invoker/jmxinvokerservlet*
+*/invoker/ejbinvokerservlet*
+*/invoker/readonly*
+# Spring Cloud Function：nuclei http/cves/2022/CVE-2022-22963.yaml（/functionRouter）
+*/functionrouter*
+# Spring Cloud Gateway：nuclei http/misconfiguration/springboot/springboot-gateway.yaml
+*/actuator/gateway/routes*
+# Confluence：nuclei http/cves/2021/CVE-2021-26084.yaml
+*/pages/doenterpagevariables.action*
+# Confluence OGNL：nuclei http/cves/2022/CVE-2022-26134.yaml（路径就是 /%24%7B...%7D/）
+*/${*
+# Struts2 演示程序：nuclei http/misconfiguration/apache-struts-showcase.yaml
+*/struts2-showcase/*
+# Exchange ProxyLogon CVE-2021-26855：nuclei http/cves/2021/CVE-2021-26855.yaml（/ecp/default.flt、
+#   /owa/auth/x.js）；MSF exploits/windows/http/exchange_proxylogon_rce.rb 请求 /ecp/<1–3 个随机字母>.js，
+#   y.js 是其中一种
+*/ecp/y.js*
+*/ecp/default.flt*
+*/owa/auth/x.js*
+# Fortinet：nuclei http/cves/2018/CVE-2018-13379.yaml
+*/remote/fgt_lang*
+# Citrix：nuclei http/cves/2019/CVE-2019-19781.yaml
+*/vpns/*
+# F5 TMUI：nuclei http/cves/2020/CVE-2020-5902.yaml
+*/tmui/*
+# F5 iControl：nuclei http/cves/2022/CVE-2022-1388.yaml、http/cves/2023/CVE-2023-46747.yaml
+*/mgmt/tm/util/bash*
+# Pulse Secure：nuclei http/cves/2019/CVE-2019-11510.yaml
+*/dana/html5acc/guacamole/*
+# Ivanti：nuclei http/cves/2023/CVE-2023-46805.yaml
+*/api/v1/totp/user-backup-code*
+# MOVEit：nuclei http/cves/2023/CVE-2023-34362.yaml
+*/moveitisapi/*
+# vCenter：nuclei http/cves/2021/CVE-2021-21972.yaml
+*/ui/vropspluginui/*
+# VMware Workspace ONE：nuclei http/cves/2022/CVE-2022-22954.yaml
+*/catalog-portal/ui/oauth/verify*
+# GPON：nuclei http/cves/2018/CVE-2018-10562.yaml
+*/gponform/*
+# Realtek SDK CVE-2014-8361：MSF exploits/linux/http/realtek_miniigd_upnp_exec_noauth.rb（uri /picsdesc.xml）
+*/picsdesc.xml*
+# 华为 HG532 CVE-2017-17215：Check Point 研究 https://research.checkpoint.com/2017/good-zero-day-skiddie/
+#   写明请求 /ctrlt/DeviceUpgrade_1
+*/ctrlt/deviceupgrade_1*
+# Linksys TheMoon：MSF exploits/linux/http/linksys_themoon_exec.rb（uri /tmUnblock.cgi）；
+#   SANS ISC https://isc.sans.edu/diary/17669
+*/tmunblock.cgi*
+# TOTOLINK 等的 boaform：nuclei http/vulnerabilities/totolink-boaform-rce.yaml；
+#   CrowdSec admin_interfaces.txt 注明 cve-2020-8958
+*/boaform/*
+# TP-Link LuCI：nuclei http/cves/2023/CVE-2023-1389.yaml
+*/cgi-bin/luci/;stok=*
+# GoAhead 系设备：nuclei 有 16 个模板请求 /goform/，如 http/vulnerabilities/other/caimore-gateway-rce.yaml
+*/goform/*
+# Netgear：nuclei http/vulnerabilities/netgear/netgear-wnr614-auth-bypass.yaml 等 6 个模板
+*/currentsetting.htm*
+# DVR 认证绕过：nuclei http/cves/2018/CVE-2018-9995.yaml
+*/device.rsp*
+# 海康威视：nuclei http/cves/2021/CVE-2021-36260.yaml
+*/sdk/weblanguage*

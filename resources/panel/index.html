@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- 仅供 npm run dev 使用；生产由扩展包的 Blade 外壳页面内联 dist/app.css 与 dist/app.js -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="dev-token" />
+    <title>访问封禁</title>
+    <script>
+      window.Fail2Ban = { path: "/fail2ban", api: "/fail2ban/api", user: "admin" }
+      if (location.pathname.indexOf("/fail2ban") !== 0) history.replaceState(null, "", "/fail2ban/")
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

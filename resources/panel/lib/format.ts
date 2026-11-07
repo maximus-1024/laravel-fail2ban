@@ -28,9 +28,9 @@ export function offenseMinutes(base: number, offense: number, repeat: Pick<Setti
 export const DISPOSITIONS: Record<Disposition, { label: string; variant: "destructive" | "secondary" | "outline" }> = {
   banned: { label: "已封禁", variant: "destructive" },
   expired: { label: "已到期", variant: "secondary" },
-  unbanned: { label: "已解封", variant: "outline" },
+  unbanned: { label: "已解封", variant: "secondary" },
   exempted: { label: "已豁免", variant: "outline" },
-  recorded: { label: "仅记录", variant: "secondary" },
+  recorded: { label: "仅记录", variant: "outline" },
 }
 
 export const MODES: Record<Mode, string> = {

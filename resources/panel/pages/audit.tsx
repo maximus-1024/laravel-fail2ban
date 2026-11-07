@@ -1,8 +1,10 @@
+import { InfoIcon } from "lucide-react"
 import * as React from "react"
 import { ALL, EmptyRow, LoadError, LoadingRows, Pager } from "@/components/shared"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { api, type AuditAction } from "@/lib/api"
 import { AUDIT_ACTIONS, AUDIT_VIA, formatTime } from "@/lib/format"
@@ -20,7 +22,10 @@ export function AuditPage() {
 
   return (
     <>
-      <p className="text-sm text-muted-foreground">管理员在面板和命令行里做的每一次改动都记在这里，最新的在最上面。攻击者触发的封禁在「攻击事件」里。</p>
+      <Alert>
+        <InfoIcon />
+        <AlertDescription>管理员在面板和命令行里做的每一次改动都记在这里，最新的在最上面。攻击者触发的封禁在「攻击事件」里。</AlertDescription>
+      </Alert>
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value={action}
@@ -33,12 +38,14 @@ export function AuditPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>全部操作</SelectItem>
-            {(Object.keys(AUDIT_ACTIONS) as AuditAction[]).map((a) => (
-              <SelectItem key={a} value={a}>
-                {AUDIT_ACTIONS[a]}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              <SelectItem value={ALL}>全部操作</SelectItem>
+              {(Object.keys(AUDIT_ACTIONS) as AuditAction[]).map((a) => (
+                <SelectItem key={a} value={a}>
+                  {AUDIT_ACTIONS[a]}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </div>
@@ -46,7 +53,7 @@ export function AuditPage() {
       {error ? <LoadError error={error} onRetry={reload} /> : null}
 
       <Card>
-        <CardContent className="grid gap-4">
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -79,8 +86,8 @@ export function AuditPage() {
               )}
             </TableBody>
           </Table>
-          {data && <Pager page={data.page} perPage={data.per_page} total={data.total} historyLimit={data.history_limit} onPage={setPage} />}
         </CardContent>
+        {data && <Pager page={data.page} perPage={data.per_page} total={data.total} historyLimit={data.history_limit} onPage={setPage} />}
       </Card>
     </>
   )

@@ -1,30 +1,43 @@
 import { AllowDialog } from "@/components/allow-dialog"
 import { ConfirmUnban } from "@/components/confirm-button"
-import { DispositionBadge, LoadError, RuleText } from "@/components/shared"
+import { DispositionBadge, EmptyState, LoadError, RuleText } from "@/components/shared"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { api, type IncidentDetail } from "@/lib/api"
 import { formatClock, formatRemaining, formatTime, humanMinutes, regionName } from "@/lib/format"
 import { useApi } from "@/lib/use-api"
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** 一行键值：表头列放字段名，值可以换行。 */
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[7rem_1fr] gap-2 py-1">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-all">{children}</dd>
-    </div>
+    <TableRow>
+      <TableHead scope="row" className="w-24 whitespace-normal">{label}</TableHead>
+      <TableCell className="whitespace-normal wrap-anywhere">{children}</TableCell>
+    </TableRow>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }
 
 function Body({ d, onChanged }: { d: IncidentDetail; onChanged: () => void }) {
   const active = d.disposition === "banned" && (d.remaining_seconds ?? 0) > 0
   return (
-    <div className="grid gap-4 px-4 pb-6 text-sm">
+    <div className="flex flex-col gap-4 px-4 pb-6">
       <div className="flex flex-wrap items-center gap-2">
         <DispositionBadge incident={d} />
-        <span className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2">
           {active && <ConfirmUnban visitor={d.visitor} onDone={onChanged} />}
           <AllowDialog
             entry={d.visitor}
@@ -35,76 +48,73 @@ function Body({ d, onChanged }: { d: IncidentDetail; onChanged: () => void }) {
               </Button>
             }
           />
-        </span>
+        </div>
       </div>
 
-      <section className="grid gap-1">
-        <h3 className="font-medium">触发规则</h3>
-        <dl>
-          <Field label="规则">
-            <RuleText incident={d} />
-            {d.rule && `，${d.reason ?? "—"}`}
-          </Field>
-          {d.source === "manual" && d.note && <Field label="备注">{d.note}</Field>}
-          {d.ban_minutes != null && (
-            <Field label="封禁时长">
-              {humanMinutes(d.ban_minutes)}
-              {d.offense != null && `，第 ${d.offense} 次被封`}
-              {(d.offense ?? 0) > 1 && "，时长已加长"}
-            </Field>
-          )}
-          {d.other_rules.length > 0 && (
-            <Field label="同时命中但没到次数">{d.other_rules.map((r) => `${r.name} ${r.count} 次`).join("，")}</Field>
-          )}
-        </dl>
-      </section>
+      <Section title="触发规则">
+        <Table>
+          <TableBody>
+            <Row label="规则">
+              <RuleText incident={d} />
+              {d.rule && `，${d.reason ?? "—"}`}
+            </Row>
+            {d.source === "manual" && d.note && <Row label="备注">{d.note}</Row>}
+            {d.ban_minutes != null && (
+              <Row label="封禁时长">
+                {humanMinutes(d.ban_minutes)}
+                {d.offense != null && `，第 ${d.offense} 次被封`}
+                {(d.offense ?? 0) > 1 && "，时长已加长"}
+              </Row>
+            )}
+            {d.other_rules.length > 0 && <Row label="同时命中但没到次数">{d.other_rules.map((r) => `${r.name} ${r.count} 次`).join("，")}</Row>}
+          </TableBody>
+        </Table>
+      </Section>
 
-      <Separator />
+      <Section title="攻击者信息">
+        <Table>
+          <TableBody>
+            <Row label="访客 IP">
+              <span className="font-mono">{d.visitor}</span>
+            </Row>
+            <Row label="国家或地区">{d.region ? regionName(d.region) : "未知"}</Row>
+            <Row label="浏览器标识">
+              <span className="font-mono">{d.user_agent ?? "—"}</span>
+            </Row>
+            <Row label="首次命中">{formatTime(d.first_hit_at)}</Row>
+            <Row label="触发封禁">{formatTime(d.banned_at ?? d.time)}</Row>
+            {d.unban_at && (
+              <Row label="解封时间">
+                {formatTime(d.unban_at)}
+                {active && `，还剩 ${formatRemaining(d.remaining_seconds)}`}
+              </Row>
+            )}
+            {d.blocked != null && (
+              <Row label="封禁后被拦">
+                {d.blocked} 次{d.last_blocked_at && `，最近一次 ${formatClock(d.last_blocked_at)}`}
+              </Row>
+            )}
+          </TableBody>
+        </Table>
+      </Section>
 
-      <section className="grid gap-1">
-        <h3 className="font-medium">攻击者信息</h3>
-        <dl>
-          <Field label="访客 IP">
-            <span className="font-mono">{d.visitor}</span>
-          </Field>
-          <Field label="国家或地区">{d.region ? regionName(d.region) : "未知"}</Field>
-          <Field label="浏览器标识">
-            <span className="font-mono">{d.user_agent ?? "—"}</span>
-          </Field>
-          <Field label="首次命中">{formatTime(d.first_hit_at)}</Field>
-          <Field label="触发封禁">{formatTime(d.banned_at ?? d.time)}</Field>
-          {d.unban_at && (
-            <Field label="解封时间">
-              {formatTime(d.unban_at)}
-              {active && `，还剩 ${formatRemaining(d.remaining_seconds)}`}
-            </Field>
-          )}
-          {d.blocked != null && (
-            <Field label="封禁后被拦">
-              {d.blocked} 次{d.last_blocked_at && `，最近一次 ${formatClock(d.last_blocked_at)}`}
-            </Field>
-          )}
-        </dl>
-      </section>
-
-      <Separator />
-
-      <section className="grid gap-2">
-        <h3 className="font-medium">请求记录</h3>
+      <Section title="请求记录">
         {d.requests.length === 0 ? (
-          <p className="text-muted-foreground">没有请求记录</p>
+          <EmptyState text="没有请求记录" />
         ) : (
-          <ol className="grid gap-2">
-            {d.requests.map((r, i) => (
-              <li key={i} className="grid gap-0.5 rounded-md border p-2">
-                <span className="font-mono text-xs break-all">
-                  {formatClock(r.time)} {r.method ?? ""} {r.path ?? "—"}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <Table>
+            <TableBody>
+              {d.requests.map((r, i) => (
+                <TableRow key={i}>
+                  <TableCell className="whitespace-normal wrap-anywhere font-mono">
+                    {formatClock(r.time)} {r.method ?? ""} {r.path ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
-      </section>
+      </Section>
     </div>
   )
 }
@@ -116,7 +126,7 @@ export function IncidentSheet({ id, onClose, onChanged }: { id: string | null; o
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>事件详情</SheetTitle>
-          <SheetDescription className="font-mono">{id}</SheetDescription>
+          <SheetDescription>{id}</SheetDescription>
         </SheetHeader>
         {id && <Loader id={id} onChanged={onChanged} />}
       </SheetContent>
@@ -134,7 +144,7 @@ function Loader({ id, onChanged }: { id: string; onChanged: () => void }) {
     )
   if (loading && !data)
     return (
-      <div className="grid gap-3 px-4">
+      <div className="flex flex-col gap-3 px-4">
         <Skeleton className="h-5 w-1/3" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-32 w-full" />

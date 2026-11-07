@@ -3,12 +3,13 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { StatusProvider, useStatus } from "@/components/status"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { MODES } from "@/lib/format"
-import { useRoute } from "@/lib/router"
+import { Link, useRoute } from "@/lib/router"
 import { AllowlistPage } from "@/pages/allowlist"
 import { AuditPage } from "@/pages/audit"
 import { BansPage } from "@/pages/bans"
@@ -36,17 +37,29 @@ function Shell() {
     <SidebarProvider>
       <AppSidebar pages={PAGES} route={route} user={window.Fail2Ban?.user ?? ""} />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-          <h1 className="text-base font-medium">{title}</h1>
+          <Separator orientation="vertical" className="mr-2 data-vertical:h-4 data-vertical:self-auto" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem className="hidden md:block">
+                <BreadcrumbLink asChild>
+                  <Link to="/">访问封禁</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="hidden md:block" />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{title}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           {settings && (
             <Badge variant={settings.mode === "block" ? "default" : "secondary"} className="ml-auto">
               {MODES[settings.mode]}
             </Badge>
           )}
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           {settings?.enabled === false && (
             <Alert variant="destructive">
               <AlertTitle>总开关已关闭</AlertTitle>
@@ -66,7 +79,7 @@ export function App() {
       <StatusProvider>
         <Shell />
       </StatusProvider>
-      <Toaster position="top-center" theme="light" />
+      <Toaster position="top-center" theme="system" />
     </TooltipProvider>
   )
 }

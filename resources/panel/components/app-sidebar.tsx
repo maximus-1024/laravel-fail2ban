@@ -1,4 +1,4 @@
-import { ShieldCheckIcon } from "lucide-react"
+import { ShieldCheckIcon, UserIcon } from "lucide-react"
 import type { PAGES, Route } from "@/app"
 import {
   Sidebar,
@@ -21,9 +21,11 @@ export function AppSidebar({ pages, route, user }: { pages: typeof PAGES; route:
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="访问封禁">
-              <ShieldCheckIcon />
-              <span className="font-semibold">访问封禁</span>
+            <SidebarMenuButton size="lg" tooltip="访问封禁" asChild>
+              <Link to="/" onClick={() => setOpenMobile(false)}>
+                <ShieldCheckIcon />
+                <span>访问封禁</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -46,9 +48,18 @@ export function AppSidebar({ pages, route, user }: { pages: typeof PAGES; route:
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <p className="truncate px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">{user}</p>
-      </SidebarFooter>
+      {user && (
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip={user}>
+                <UserIcon />
+                <span>{user}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
     </Sidebar>
   )
 }

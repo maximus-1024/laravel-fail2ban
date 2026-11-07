@@ -1,8 +1,12 @@
+import { InboxIcon } from "lucide-react"
 import { useStatus } from "@/components/status"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CardDescription, CardFooter } from "@/components/ui/card"
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { errorMessage, type Incident } from "@/lib/api"
@@ -21,6 +25,19 @@ export function DispositionBadge({ incident }: { incident: Pick<Incident, "dispo
   )
 }
 
+/** 表格里的两行文字：主文字加一行说明，排版全部交给 Item。 */
+export function CellText({ title, description, mono, children }: { title: React.ReactNode; description?: React.ReactNode; mono?: boolean; children?: React.ReactNode }) {
+  return (
+    <Item size="xs" className="p-0">
+      <ItemContent>
+        <ItemTitle className={mono ? "font-mono" : undefined}>{title}</ItemTitle>
+        {description && <ItemDescription>{description}</ItemDescription>}
+        {children}
+      </ItemContent>
+    </Item>
+  )
+}
+
 /** 触发规则：自动封禁显示规则名，手动封禁显示操作人。 */
 export function RuleText({ incident }: { incident: Pick<Incident, "rule" | "operator" | "source"> }) {
   if (incident.rule) return <>{incident.rule.name}</>
@@ -33,12 +50,12 @@ export function IncidentRow({ incident: i, showId, onOpen }: { incident: Inciden
     <TableRow className="cursor-pointer" onClick={() => onOpen(i.id)}>
       <TableCell>{formatTime(i.time)}</TableCell>
       <TableCell>
-        <Button variant="link" className="h-auto p-0 font-mono" onClick={() => onOpen(i.id)}>
+        <Button variant="link" className="px-0 font-mono" onClick={() => onOpen(i.id)}>
           {i.visitor}
         </Button>
       </TableCell>
       <TableCell>{i.region ? regionName(i.region) : "—"}</TableCell>
-      {showId && <TableCell className="font-mono text-xs text-muted-foreground">{i.id}</TableCell>}
+      {showId && <TableCell className="font-mono">{i.id}</TableCell>}
       <TableCell>
         <RuleText incident={i} />
       </TableCell>
@@ -59,13 +76,15 @@ export function RuleSelect({ value, onChange }: { value: string; onChange: (valu
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>全部规则</SelectItem>
-        {rules.map((r) => (
-          <SelectItem key={r.id} value={r.id}>
-            {r.name}
-          </SelectItem>
-        ))}
-        <SelectItem value="manual">手动封禁</SelectItem>
+        <SelectGroup>
+          <SelectItem value={ALL}>全部规则</SelectItem>
+          {rules.map((r) => (
+            <SelectItem key={r.id} value={r.id}>
+              {r.name}
+            </SelectItem>
+          ))}
+          <SelectItem value="manual">手动封禁</SelectItem>
+        </SelectGroup>
       </SelectContent>
     </Select>
   )
@@ -101,21 +120,31 @@ export function LoadingRows({ cols, rows = 4 }: { cols: number; rows?: number })
   )
 }
 
-export function EmptyRow({ cols, text = "暂无数据" }: { cols: number; text?: string }) {
+/** 空态：Empty 组件；表格里用 EmptyRow 占满一行。 */
+export function EmptyState({ text = "暂无数据" }: { text?: string }) {
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <InboxIcon />
+        </EmptyMedia>
+        <EmptyTitle>{text}</EmptyTitle>
+      </EmptyHeader>
+    </Empty>
+  )
+}
+
+export function EmptyRow({ cols, text }: { cols: number; text?: string }) {
   return (
     <TableRow>
-      <TableCell colSpan={cols} className="h-24 text-center text-muted-foreground">
-        {text}
+      <TableCell colSpan={cols}>
+        <EmptyState text={text} />
       </TableCell>
     </TableRow>
   )
 }
 
-export function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return <p className="text-sm text-destructive">{message}</p>
-}
-
+/** 分页：照数据表格示例，上一页、下一页两个按钮，放在卡片底部。 */
 export function Pager({
   page,
   perPage,
@@ -132,21 +161,21 @@ export function Pager({
 }) {
   const pages = Math.max(1, Math.ceil(total / perPage))
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-      <span>
+    <CardFooter className="flex-wrap justify-between gap-2">
+      <CardDescription>
         共 {total} 条{historyLimit ? `，只保留最近 ${historyLimit} 条` : ""}
-      </span>
+      </CardDescription>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
           上一页
         </Button>
-        <span className="whitespace-nowrap">
+        <CardDescription>
           第 {page} / {pages} 页
-        </span>
+        </CardDescription>
         <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>
           下一页
         </Button>
       </div>
-    </div>
+    </CardFooter>
   )
 }

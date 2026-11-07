@@ -4,7 +4,7 @@ import { ALL, EmptyRow, IncidentRow, LoadError, LoadingRows, Pager, RuleSelect }
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { api, type Disposition } from "@/lib/api"
 import { DISPOSITIONS } from "@/lib/format"
@@ -53,12 +53,14 @@ export function IncidentsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>全部处置</SelectItem>
-            {(Object.keys(DISPOSITIONS) as Disposition[]).map((d) => (
-              <SelectItem key={d} value={d}>
-                {DISPOSITIONS[d].label}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              <SelectItem value={ALL}>全部处置</SelectItem>
+              {(Object.keys(DISPOSITIONS) as Disposition[]).map((d) => (
+                <SelectItem key={d} value={d}>
+                  {DISPOSITIONS[d].label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <RuleSelect
@@ -77,7 +79,7 @@ export function IncidentsPage() {
       {error ? <LoadError error={error} onRetry={reload} /> : null}
 
       <Card>
-        <CardContent className="grid gap-4">
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -100,8 +102,8 @@ export function IncidentsPage() {
               )}
             </TableBody>
           </Table>
-          {data && <Pager page={data.page} perPage={data.per_page} total={data.total} historyLimit={data.history_limit} onPage={setPage} />}
         </CardContent>
+        {data && <Pager page={data.page} perPage={data.per_page} total={data.total} historyLimit={data.history_limit} onPage={setPage} />}
       </Card>
 
       <IncidentSheet id={incident} onClose={() => setIncident(null)} onChanged={reload} />

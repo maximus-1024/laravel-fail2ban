@@ -1,10 +1,12 @@
+import { InfoIcon } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
-import { FieldError } from "@/components/shared"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Spinner } from "@/components/ui/spinner"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { api, errorMessage, fieldError, type RuleAction, type RuleSetting, type Settings } from "@/lib/api"
 import { RULE_ACTIONS, humanMinutes, offenseMinutes } from "@/lib/format"
@@ -81,50 +83,52 @@ export function RuleSheet({
               <SheetTitle>编辑规则 · {rule.name}</SheetTitle>
               <SheetDescription>{rule.description}</SheetDescription>
             </SheetHeader>
-            <div className="grid gap-5 px-4 text-sm">
-              <div className="grid gap-3">
-                <Label>规则动作</Label>
+            <FieldGroup className="px-4">
+              <FieldSet data-invalid={!!err("action")}>
+                <FieldLegend variant="label">规则动作</FieldLegend>
                 <RadioGroup value={form.action} onValueChange={(v) => setForm({ ...form, action: v as RuleAction })}>
                   {(Object.keys(RULE_ACTIONS) as RuleAction[]).map((a) => (
-                    <div key={a} className="flex items-start gap-3">
-                      <RadioGroupItem value={a} id={`rule-action-${a}`} className="mt-0.5" />
-                      <Label htmlFor={`rule-action-${a}`} className="grid gap-1 leading-snug font-normal">
-                        <span className="font-medium">{RULE_ACTIONS[a].label}</span>
-                        <span className="text-muted-foreground">{RULE_ACTIONS[a].hint}</span>
-                      </Label>
-                    </div>
+                    <Field key={a} orientation="horizontal">
+                      <RadioGroupItem value={a} id={`rule-action-${a}`} />
+                      <FieldContent>
+                        <FieldLabel htmlFor={`rule-action-${a}`}>{RULE_ACTIONS[a].label}</FieldLabel>
+                        <FieldDescription>{RULE_ACTIONS[a].hint}</FieldDescription>
+                      </FieldContent>
+                    </Field>
                   ))}
                 </RadioGroup>
-                <FieldError message={err("action")} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="rule-window">时间范围，单位分钟</Label>
+                <FieldError>{err("action")}</FieldError>
+              </FieldSet>
+              <Field data-invalid={!!err("window_minutes")}>
+                <FieldLabel htmlFor="rule-window">时间范围，单位分钟</FieldLabel>
                 <Input id="rule-window" type="number" inputMode="numeric" min={L.window_minutes[0]} max={L.window_minutes[1]} value={form.window} aria-invalid={!!err("window_minutes")} onChange={(e) => setForm({ ...form, window: e.target.value })} />
-                <p className="text-muted-foreground">从第一次命中算起。可填 {L.window_minutes[0]} 到 {L.window_minutes[1]}。</p>
-                <FieldError message={err("window_minutes")} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="rule-count">出现次数</Label>
+                <FieldDescription>从第一次命中算起。可填 {L.window_minutes[0]} 到 {L.window_minutes[1]}。</FieldDescription>
+                <FieldError>{err("window_minutes")}</FieldError>
+              </Field>
+              <Field data-invalid={!!err("count")}>
+                <FieldLabel htmlFor="rule-count">出现次数</FieldLabel>
                 <Input id="rule-count" type="number" inputMode="numeric" min={L.count[0]} max={L.count[1]} value={form.count} aria-invalid={!!err("count")} onChange={(e) => setForm({ ...form, count: e.target.value })} />
-                <p className="text-muted-foreground">
+                <FieldDescription>
                   {rule.count_mode === "each" ? "按请求次数。" : "按不同的地址数。"}可填 {L.count[0]} 到 {L.count[1]}。
-                </p>
-                <FieldError message={err("count")} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="rule-ban">封禁时长，单位分钟</Label>
+                </FieldDescription>
+                <FieldError>{err("count")}</FieldError>
+              </Field>
+              <Field data-invalid={!!err("ban_minutes")}>
+                <FieldLabel htmlFor="rule-ban">封禁时长，单位分钟</FieldLabel>
                 <Input id="rule-ban" type="number" inputMode="numeric" min={L.ban_minutes[0]} max={L.ban_minutes[1]} value={form.ban} aria-invalid={!!err("ban_minutes")} onChange={(e) => setForm({ ...form, ban: e.target.value })} />
-                <p className="text-muted-foreground">
+                <FieldDescription>
                   {ban > 0 ? `等于 ${humanMinutes(ban)}` : humanMinutes(ban)}。可填 {L.ban_minutes[0]} 到 {L.ban_minutes[1]}。
-                </p>
-                <FieldError message={err("ban_minutes")} />
-              </div>
-              <p className="rounded-md border bg-muted/50 p-3" data-testid="rule-summary">
-                {ruleSummary(rule, form, settings.repeat)}
-              </p>
-            </div>
+                </FieldDescription>
+                <FieldError>{err("ban_minutes")}</FieldError>
+              </Field>
+              <Alert data-testid="rule-summary">
+                <InfoIcon />
+                <AlertDescription>{ruleSummary(rule, form, settings.repeat)}</AlertDescription>
+              </Alert>
+            </FieldGroup>
             <SheetFooter className="mt-auto">
               <Button type="submit" disabled={busy}>
+                {busy && <Spinner data-icon="inline-start" />}
                 确定
               </Button>
               <Button type="button" variant="outline" onClick={onClose}>

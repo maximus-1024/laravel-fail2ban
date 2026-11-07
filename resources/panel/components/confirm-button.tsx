@@ -12,6 +12,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { api, errorMessage } from "@/lib/api"
 
 /** 按钮 + 二次确认：确认后执行 run，成功时提示 success 并关闭，失败时提示原因、对话框留着。 */
@@ -65,6 +66,7 @@ export function ConfirmButton({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
           <AlertDialogAction variant="destructive" disabled={busy} onClick={onConfirm}>
+            {busy && <Spinner data-icon="inline-start" />}
             {confirm}
           </AlertDialogAction>
         </AlertDialogFooter>

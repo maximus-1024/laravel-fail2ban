@@ -1,6 +1,8 @@
+import { InfoIcon } from "lucide-react"
 import { AllowDialog } from "@/components/allow-dialog"
 import { ConfirmButton } from "@/components/confirm-button"
 import { EmptyRow, LoadError, LoadingRows } from "@/components/shared"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -13,7 +15,10 @@ export function AllowlistPage() {
 
   return (
     <>
-      <p className="text-sm text-muted-foreground">白名单里的 IP 和网段不统计命中，也不会被封。把一个 IP 加进来，会同时解除它当前的封禁。</p>
+      <Alert>
+        <InfoIcon />
+        <AlertDescription>白名单里的 IP 和网段不统计命中，也不会被封。把一个 IP 加进来，会同时解除它当前的封禁。</AlertDescription>
+      </Alert>
       {error ? <LoadError error={error} onRetry={reload} /> : null}
 
       <Card>

@@ -103,13 +103,17 @@ class StatusClassifiedListTest extends RuleTestCase
         $this->assertSame(['*/laravel-filemanager/download*', '*/voyager-assets*'], $exploit[PatternList::NON_SUCCESS]);
 
         // 抽查归属
-        foreach (['*/.env*', '*/.git/*', '*.sql', '*.php', '*/storage/logs/*', '*/storage/framework/*', '/artisan', '*/.git-credentials', '*/.kube/*', '/@fs/*'] as $entry) {
+        foreach (['*/.env*', '*/.git/*', '*.sql', '*.php', '*/storage/logs/*', '*/storage/framework/*', '/artisan', '*/.git-credentials', '*/.kube/*', '*/@fs/*'] as $entry) {
             $this->assertContains($entry, $sensitive[PatternList::ANY_STATUS], $entry);
         }
 
         foreach (['*/phpmyadmin*', '*/wp-*', '/horizon/*', '/telescope/*', '*/_profiler/*', '/nova/*', '/laravel-filemanager/*', '*/gponform/*', '*/env.js', '*/env.json', '/livewire/*', '*/credentials.json'] as $entry) {
             $this->assertContains(strtolower($entry), array_map(strtolower(...), $sensitive[PatternList::NON_SUCCESS]), $entry);
         }
+
+        // 2026-11-10 起任何层级都算，只在根目录的条目只剩这 8 条（普通英文词，或包把前端文件发布在 public/vendor 下，见清单里的说明）
+        $rootOnly = array_values(array_filter([...$sensitive[PatternList::ANY_STATUS], ...$sensitive[PatternList::NON_SUCCESS]], fn (string $entry) => $entry[0] === '/'));
+        $this->assertSame(['/artisan', '/telescope/*', '/horizon/*', '/pulse/*', '/log-viewer/*', '/nova/*', '/laravel-filemanager/*', '/livewire/*'], $rootOnly);
     }
 
     #[Test]

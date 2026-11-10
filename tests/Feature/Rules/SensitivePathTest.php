@@ -277,6 +277,84 @@ class SensitivePathTest extends RuleTestCase
         }
     }
 
+    /**
+     * 2026-11-10 起任何层级都算：扫描器在宿主的子前缀下探测，原先只认根目录的条目漏掉了这些请求。
+     *
+     * @return array<string, array{string, int}>
+     */
+    public static function nestedProbes(): array
+    {
+        return [
+            'ignition 健康检查' => ['/portal/_ignition/health-check', 404],
+            'ignition 多层前缀' => ['/api/v1/_ignition/scripts/x', 404],
+            'debugbar' => ['/portal/_debugbar/open', 404],
+            'clockwork' => ['/portal/clockwork/app', 404],
+            'clockwork 不带斜杠' => ['/portal/clockwork', 403],
+            '__clockwork' => ['/portal/__clockwork/latest', 404],
+            '子目录 .env' => ['/api/.env', 200],
+            '子目录 .git' => ['/portal/.git/config', 200],
+            'vite @fs 带 base' => ['/build/@fs/etc/passwd', 200],
+            'vite @id 带 base' => ['/portal/@id/x', 200],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('nestedProbes')]
+    public function converted_entries_match_under_a_sub_prefix(string $path, int $status): void
+    {
+        $this->assertTrue((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+    }
+
+    #[Test]
+    public function converted_non_success_entries_still_need_an_unsuccessful_response_under_a_sub_prefix(): void
+    {
+        foreach (['/portal/_ignition/health-check', '/portal/_debugbar/open', '/portal/clockwork/app'] as $path) {
+            $this->assertFalse((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response(200)), $path);
+        }
+    }
+
+    /**
+     * 只在根目录的 8 条（普通英文词，或包把前端文件发布在 public/vendor 下）：子前缀下不算，根目录照旧算。
+     *
+     * @return array<string, array{string}>
+     */
+    public static function rootOnlyUnderSubPrefix(): array
+    {
+        return [
+            'artisan' => ['/products/artisan'], 'artisan 子路径' => ['/api/artisan'],
+            'horizon' => ['/api/v1/horizon'], 'horizon 子路径' => ['/portal/horizon/dashboard'],
+            'pulse' => ['/api/pulse'], 'pulse 子路径' => ['/health/pulse/check'],
+            'nova' => ['/api/nova/orders'], 'nova 不带斜杠' => ['/merchant/nova'],
+            'telescope' => ['/portal/telescope/requests'], 'telescope 发布的前端文件' => ['/vendor/telescope/app.js'],
+            'log-viewer' => ['/portal/log-viewer'], 'log-viewer 发布的前端文件' => ['/vendor/log-viewer/app.js'],
+            'laravel-filemanager' => ['/portal/laravel-filemanager/upload'],
+            'laravel-filemanager 发布的前端文件' => ['/vendor/laravel-filemanager/js/script.js'],
+            'livewire' => ['/portal/livewire/update'], 'livewire 发布的前端文件' => ['/vendor/livewire/livewire.js'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('rootOnlyUnderSubPrefix')]
+    public function root_only_entries_do_not_match_under_a_sub_prefix(string $path): void
+    {
+        foreach ([200, 403, 404] as $status) {
+            $this->assertFalse((new SensitivePath)->matches($this->makeRequest('GET', $path), $this->response($status)), "$path $status");
+        }
+    }
+
+    #[Test]
+    public function root_only_entries_still_match_at_the_root(): void
+    {
+        $rule = new SensitivePath;
+
+        $this->assertTrue($rule->matches($this->makeRequest('GET', '/artisan'), $this->response(200)));
+
+        foreach (['/telescope/requests', '/horizon/dashboard', '/pulse', '/log-viewer', '/nova/resources', '/laravel-filemanager', '/livewire/update'] as $path) {
+            $this->assertTrue($rule->matches($this->makeRequest('GET', $path), $this->response(404)), $path);
+            $this->assertFalse($rule->matches($this->makeRequest('GET', $path), $this->response(200)), $path);
+        }
+    }
+
     #[Test]
     public function key_is_the_path_without_query(): void
     {

@@ -12,6 +12,9 @@
 # 所以 "*/.git/*" 同时命中 "/.git" 与 "/.git/config"。
 #
 # 条目数：306（十三组；[any-status] 174 条，[non-success] 132 条）。核对日期：2026-11-07。
+# 以 "/" 开头的条目只在根目录匹配，以 "*/" 开头的在任何层级匹配（"*/.env*" 同时命中 "/.env" 与 "/api/.env"）。
+#   以 "/" 开头的只剩 8 条：/artisan、/telescope/*、/horizon/*、/pulse/*、/log-viewer/*、/nova/*、
+#   /laravel-filemanager/*、/livewire/*，原因写在各自所在的分段里。
 #
 # 出处（均在 2026-11-07 在线打开核对）：
 #   CrowdSec http-sensitive-files（按「结尾」匹配）     https://hub-data.crowdsec.net/web/sensitive_data.txt
@@ -33,7 +36,19 @@
 #     .swp 等）、「环境与配置文件」里的 .ini .conf .cfg .config .pem .key .ppk .p12 .pfx：
 #     第一版按常识整理，没有逐条对应到出处；它们都是 Laravel 接口绝不会提供的后缀，误伤面小，保留。
 #
-# 本次（2026-11-07）的调整：
+# 2026-11-10 的调整（任何层级都算）：
+#   扫描器会在宿主的子前缀下探测（/portal/_ignition/health-check、/portal/.env 这类），以 "/" 开头的
+#   条目只认根目录，这些请求没被计数。改为任何层级都算：以 "/" 开头的 14 条里 6 条改成 "*/" 开头——
+#   */_ignition/*、*/_debugbar/*、*/clockwork/*、*/__clockwork/*、*/@fs/*、*/@id/*。这些都是框架或
+#   调试工具的专有名字，正常的接口在任何前缀下都不会有。（/.env、/.git 这类点文件本来就是 "*/" 开头。）
+#   保留只在根目录的 8 条，两类原因：
+#     普通英文词，可能出现在商户的接口路径里：/artisan、/horizon/*、/pulse/*、/nova/*；
+#     包会把前端文件发布在 public/vendor/<包名>/ 下，任何层级会抓到 /vendor/telescope/app.js 这类没发布时的
+#     404，把打开面板的管理员封掉：/telescope/*、/horizon/*、/nova/*、/log-viewer/*、/laravel-filemanager/*、
+#     /livewire/*。
+#   条目没有增删，分段标记没有改。其余条目本来就是 "*/" 或 "*." 开头，不受影响。
+#
+# 2026-11-07 的调整：
 #   收紧（理由：对一个 Laravel 支付接口太宽）：
 #     "*.yml"、"*.yaml" → 删掉，换成 nuclei 实际探测的具体文件名（user_secrets.yml、parameters.yml、
 #       security.yml、settings.yml、configuration.yml、storage.yml、serverless.yml/.yaml、phinx.yml、
@@ -264,16 +279,27 @@
 */storage/framework/*
 */storage/sessions/*
 */bootstrap/cache/*
+# 只在根目录：artisan 是普通英文词（工匠、手工），商户的商品或接口路径里可能出现，这一段又不看状态码，
+#   放到任何层级误伤面太大；扫描器探测的也只是根目录的 /artisan。
 /artisan
 
 ## Laravel 专项：调试与运维面板（装了这些面板时管理员能正常打开，打开成功不算） [non-success]
+# 2026-11-10 起 _ignition、_debugbar、clockwork、__clockwork 按任何层级匹配：扫描器会在子前缀下探测
+#   （/portal/_ignition/health-check 这类），这几个包不往 public/vendor 发布前端文件，子前缀下出现就是扫描。
+# 只在根目录：
+#   /horizon/*、/pulse/*、/nova/*：普通英文词（地平线、心跳、新星），商户的接口路径里可能出现
+#     （/api/v1/horizon、/api/pulse 这类心跳接口）；宿主装了这些面板时也只在根目录，没登录打开已经会算，
+#     放到任何层级只多误伤、不多抓到。
+#   /telescope/*、/horizon/*、/nova/*、/log-viewer/*、/laravel-filemanager/*：这些包把前端文件发布在
+#     public/vendor/<包名>/ 下，按任何层级会抓到 /vendor/telescope/app.js，没发布或版本变了时运维打开面板
+#     就会连着几个 404，把管理员自己封掉（与不收 /vendor/* 的理由相同）。
 /telescope/*
 /horizon/*
 /pulse/*
-/_ignition/*
-/_debugbar/*
-/clockwork/*
-/__clockwork/*
+*/_ignition/*
+*/_debugbar/*
+*/clockwork/*
+*/__clockwork/*
 /log-viewer/*
 /nova/*
 /laravel-filemanager/*
@@ -293,6 +319,7 @@
 ## Laravel 与 PHP 生态：开发、构建与依赖配置（2026-11-07 补充） [non-success]
 # Livewire：CVE-2025-54068，nuclei http/cves/2025/CVE-2025-54068.yaml；GHSA-29cq-5w36-x7w3。
 #   用 Livewire 的宿主正常请求是成功响应，不算；没用时任何请求都是扫描。
+#   只在根目录：Livewire 可以把前端文件发布到 public/vendor/livewire/，理由同上面的面板一组。
 /livewire/*
 # nuclei exposures/configs/symfony-lock-exposure.yaml
 */symfony.lock
@@ -507,5 +534,6 @@
 
 ## 其它平台：Vite 开发服务器（生产构建没有这些路径，2026-11-07 补充） [any-status]
 # CVE-2025-30208：GHSA-x574-m823-4x7w 写明用 /@fs/…?raw?? 读任意文件；CRS restricted-files.data 有 /@fs/、/@id/
-/@fs/*
-/@id/*
+# 2026-11-10 起按任何层级匹配：Vite 配了 base（例如 /build/）时开发服务器的地址是 /build/@fs/…
+*/@fs/*
+*/@id/*
